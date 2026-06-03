@@ -12,8 +12,8 @@ extern "C" {
 #include "stm32h750b_discovery_ts.h"
 #include "stm32_lcd.h"
 
-void Touchscreen_demo(void);
-void simple_demo(void);
+void Touchscreen_Init(void);
+void Touchscreen_Poll(uint8_t *state);
 void Error_Handler(void);
 void Touchscreen_DrawBackground_Circles(uint8_t state);
 uint8_t TouchScreen_GetTouchPosition(void);

@@ -2440,6 +2440,9 @@ __WEAK void vApplicationDaemonTaskStartupHook (void){}
 */
 #if (configCHECK_FOR_STACK_OVERFLOW > 0)
 __WEAK void vApplicationStackOverflowHook (TaskHandle_t xTask, signed char *pcTaskName) {
+      // Breakpoint here, or blink an error LED, or log via UART
+    __BKPT(0);   // halts in debugger
+    for(;;);
   (void)xTask;
   (void)pcTaskName;
   configASSERT(0);

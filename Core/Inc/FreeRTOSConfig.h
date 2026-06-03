@@ -101,6 +101,7 @@
 #define configUSE_OS2_THREAD_FLAGS           1
 #define configUSE_OS2_TIMER                  1
 #define configUSE_OS2_MUTEX                  1
+#define configCHECK_FOR_STACK_OVERFLOW 2   // method 2 is more thorough
 
 /* Set the following definitions to 1 to include the API function, or zero
 to exclude the API function. */

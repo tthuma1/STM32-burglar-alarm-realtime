@@ -50,6 +50,13 @@ const osThreadAttr_t defaultTask_attributes = {
   .stack_size = 128 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
+
+osThreadId_t taskLEDHandle;
+const osThreadAttr_t taskLED_attributes = {
+  .name = "taskLED",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* USER CODE BEGIN PV */
 SPI_HandleTypeDef hspi2;
 TIM_HandleTypeDef htim3;
@@ -66,6 +73,8 @@ static void MX_USART3_UART_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_TIM3_Init(void);
 void LED_Breathe(void);
+
+void StartTaskLED(void *argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -91,17 +100,16 @@ int main(void)
   HAL_Init();
 
   /* USER CODE BEGIN Init */
-  MX_GPIO_Init();
-  // MX_USART3_UART_Init();
-  // MX_SPI2_Init();
-  MX_TIM3_Init();
   /* USER CODE END Init */
 
   /* Configure the system clock */
   SystemClock_Config();
 
   /* USER CODE BEGIN SysInit */
-
+  MX_GPIO_Init();
+  // MX_USART3_UART_Init();
+  // MX_SPI2_Init();
+  MX_TIM3_Init();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -136,6 +144,8 @@ int main(void)
 
   /* USER CODE BEGIN RTOS_THREADS */
   /* add threads, ... */
+  /* creation of taskLED */
+  taskLEDHandle = osThreadNew(StartTaskLED, NULL, &taskLED_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -330,15 +340,32 @@ void LED_Breathe()
   for (uint32_t i = 0; i <= PWM_STEPS; i++)
   {
       __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
-      HAL_Delay(STEP_DELAY);
+      osDelay(STEP_DELAY);
   }
 
   // Fade OUT: 100% → 0%
   for (int32_t i = PWM_STEPS; i >= 0; i--)
   {
       __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
-      HAL_Delay(STEP_DELAY);
+      osDelay(STEP_DELAY);
   }
+}
+
+/**
+* @brief Function implementing the myTask02 thread.
+* @param argument: Not used
+* @retval None
+*/
+void StartTaskLED(void *argument)
+{
+  /* USER CODE BEGIN StartTaskLED */
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  /* Infinite loop */
+  for(;;)
+  {
+    LED_Breathe();
+  }
+  /* USER CODE END StartTaskLED */
 }
 /* USER CODE END 4 */
 
@@ -352,14 +379,14 @@ void LED_Breathe()
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  uint8_t ts_state = 0;
+  Touchscreen_Init();   // init once
 
   /* Infinite loop */
   for(;;)
   {
-    osDelay(1);
-    LED_Breathe();
-    // Touchscreen_demo();
+    Touchscreen_Poll(&ts_state);  // non-blocking poll
+    osDelay(20);                  // yields; ~50 Hz touch check  
   }
   /* USER CODE END 5 */
 }
