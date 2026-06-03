@@ -59,7 +59,10 @@ void HAL_TIM_MspPostInit(TIM_HandleTypeDef *htim);
 /* Private defines -----------------------------------------------------------*/
 
 /* USER CODE BEGIN Private defines */
-
+#define RESET_Pin GPIO_PIN_8
+#define RESET_GPIO_Port GPIOI
+#define CS_Pin GPIO_PIN_4
+#define CS_GPIO_Port GPIOB
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus
