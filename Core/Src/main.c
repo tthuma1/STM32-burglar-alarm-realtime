@@ -326,24 +326,19 @@ static void MX_GPIO_Init(void)
 
 void LED_Breathe() 
 {
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+  // Fade IN: 0% → 100%
+  for (uint32_t i = 0; i <= PWM_STEPS; i++)
+  {
+      __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
+      HAL_Delay(STEP_DELAY);
+  }
 
-    while (1)
-    {
-        // Fade IN: 0% → 100%
-        for (uint32_t i = 0; i <= PWM_STEPS; i++)
-        {
-            __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
-            HAL_Delay(STEP_DELAY);
-        }
-
-        // Fade OUT: 100% → 0%
-        for (int32_t i = PWM_STEPS; i >= 0; i--)
-        {
-            __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
-            HAL_Delay(STEP_DELAY);
-        }
-    }
+  // Fade OUT: 100% → 0%
+  for (int32_t i = PWM_STEPS; i >= 0; i--)
+  {
+      __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
+      HAL_Delay(STEP_DELAY);
+  }
 }
 /* USER CODE END 4 */
 
@@ -357,6 +352,8 @@ void LED_Breathe()
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+  HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+
   /* Infinite loop */
   for(;;)
   {
