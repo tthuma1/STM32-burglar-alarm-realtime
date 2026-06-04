@@ -1,19 +1,47 @@
 #include "mfrc522.h"
 #include "main.h"
+#include "cmsis_os.h"
+#include <stdarg.h>
 
 uint8_t atqa[2];
+
+extern UART_HandleTypeDef huart3;
+static char _log_buf[128];
+
+static void rfid_log(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    int len = vsnprintf(_log_buf, sizeof(_log_buf), fmt, args);
+    va_end(args);
+    HAL_UART_Transmit(&huart3, (uint8_t*)_log_buf, len, 999);
+}
+
+#undef USER_LOG
+#undef DEBUG_LOG
+
+#if ENABLE_USER_LOG
+  #define USER_LOG(fmt, ...) rfid_log("[USER] " fmt "\r\n", ##__VA_ARGS__)
+#else
+  #define USER_LOG(fmt, ...)
+#endif
+
+#if ENABLE_DEBUG_LOG
+  #define DEBUG_LOG(fmt, ...) rfid_log("[DEBUG] " fmt "\r\n", ##__VA_ARGS__)
+#else
+  #define DEBUG_LOG(fmt, ...)
+#endif
 
 void MFRC522_Init(MFRC522_t *dev) {
     USER_LOG("MFRC522 Min Init started");
     // Hardware reset
     HAL_GPIO_WritePin(dev->rstPort, dev->rstPin, GPIO_PIN_RESET);
-    HAL_Delay(50);
+    osDelay(50);
     HAL_GPIO_WritePin(dev->rstPort, dev->rstPin, GPIO_PIN_SET);
-    HAL_Delay(50);
+    osDelay(50);
 
     // Soft reset
     MFRC522_WriteReg(dev, PCD_CommandReg, PCD_SoftReset);
-    HAL_Delay(50);
+    osDelay(50);
 
     // Clear interrupts
     MFRC522_WriteReg(dev, PCD_ComIrqReg, 0x7F);
@@ -34,7 +62,7 @@ void MFRC522_Init(MFRC522_t *dev) {
 
     // Enable antenna
     MFRC522_AntennaOn(dev);
-    HAL_Delay(10);  // Let RF stabilize
+    osDelay(10);  // Let RF stabilize
 
     uint8_t version = MFRC522_ReadReg(dev, PCD_VersionReg);
     if ((version != 0x91) && (version != 0x92)){
@@ -63,7 +91,7 @@ uint8_t MFRC522_ReadReg(MFRC522_t *dev, uint8_t reg) {
     HAL_SPI_Transmit(dev->hspi, &addr, 1, HAL_MAX_DELAY);
     HAL_SPI_Receive(dev->hspi, &val, 1, HAL_MAX_DELAY);
     HAL_GPIO_WritePin(dev->csPort, dev->csPin, GPIO_PIN_SET);
-    HAL_Delay(1);
+    osDelay(1);
     DEBUG_LOG("ReadReg: 0x%02X -> 0x%02X", reg, val);
     return val;
 }
@@ -74,7 +102,7 @@ void MFRC522_WriteReg(MFRC522_t *dev, uint8_t reg, uint8_t value) {
     HAL_SPI_Transmit(dev->hspi, &addr, 1, HAL_MAX_DELAY);
     HAL_SPI_Transmit(dev->hspi, &value, 1, HAL_MAX_DELAY);
     HAL_GPIO_WritePin(dev->csPort, dev->csPin, GPIO_PIN_SET);
-    HAL_Delay(1);
+    osDelay(1);
     DEBUG_LOG("WriteReg: 0x%02X = 0x%02X", reg, value);
 }
 
@@ -93,27 +121,27 @@ void MFRC522_ClearBitMask(MFRC522_t *dev, uint8_t reg, uint8_t mask) {
 uint8_t MFRC522_RequestA(MFRC522_t *dev, uint8_t *atqa) {
     DEBUG_LOG("RequestA");
     MFRC522_AntennaOff(dev);  // Reset RF
-    HAL_Delay(5);  // Allow chip to stabilize
+    osDelay(5);  // Allow chip to stabilize
     MFRC522_AntennaOn(dev);
-    HAL_Delay(5);  // Ensure RF is ready
+    osDelay(5);  // Ensure RF is ready
     MFRC522_WriteReg(dev, PCD_ComIrqReg, 0x7F);      // Clear IRQs
     MFRC522_WriteReg(dev, PCD_FIFOLevelReg, 0x80);   // Flush FIFO
     MFRC522_WriteReg(dev, PCD_BitFramingReg, 0x07);  // 7 bits for REQA
     MFRC522_WriteReg(dev, PCD_FIFODataReg, PICC_REQA);
-    HAL_Delay(2);  // Increased for counterfeit chip stability
+    osDelay(2);  // Increased for counterfeit chip stability
     MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Transceive);
     MFRC522_SetBitMask(dev, PCD_BitFramingReg, 0x80);
 
     // Poll for completion (25ms timeout)
-    uint32_t timeout = HAL_GetTick() + 25;
-    while (HAL_GetTick() < timeout) {
+    uint32_t timeout = osKernelGetTickCount() + 25;
+    while (osKernelGetTickCount() < timeout) {
         uint8_t status2 = MFRC522_ReadReg(dev, PCD_Status2Reg);
         if (status2 & 0x01) {  // Command complete
             uint8_t err = MFRC522_ReadReg(dev, PCD_ErrorReg);
             if (err & 0x1D) {  // Protocol/parity/buffer errors
                 DEBUG_LOG("RequestA error: 0x%02X", err);
                 MFRC522_AntennaOff(dev);
-                HAL_Delay(5);
+                osDelay(5);
                 MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Idle); // Stop command
                 return STATUS_ERROR;
             }
@@ -123,20 +151,20 @@ uint8_t MFRC522_RequestA(MFRC522_t *dev, uint8_t *atqa) {
                 atqa[1] = MFRC522_ReadReg(dev, PCD_FIFODataReg);
                 DEBUG_LOG("RequestA ATQA: 0x%02X 0x%02X", atqa[0], atqa[1]);
                 MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Idle); // Stop command
-                HAL_Delay(2);  // Post-command delay
+                osDelay(2);  // Post-command delay
                 return STATUS_OK;
             }
             DEBUG_LOG("RequestA bad FIFO level: %d", fifoLvl);
             MFRC522_AntennaOff(dev);
-            HAL_Delay(5);
+            osDelay(5);
             MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Idle);
             return STATUS_ERROR;
         }
-        HAL_Delay(1);  // Mimic debug log timing
+        osDelay(1);  // Mimic debug log timing
     }
     DEBUG_LOG("RequestA timeout");
     MFRC522_AntennaOff(dev);
-    HAL_Delay(5);
+    osDelay(5);
     MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Idle);
     return STATUS_TIMEOUT;
 }
@@ -148,19 +176,19 @@ uint8_t MFRC522_Anticoll(MFRC522_t *dev, uint8_t *uid) {  // Returns 4-byte UID 
     MFRC522_WriteReg(dev, PCD_BitFramingReg, 0x00);  // Full frame
     MFRC522_WriteReg(dev, PCD_FIFODataReg, PICC_SEL_CL1);  // 0x93
     MFRC522_WriteReg(dev, PCD_FIFODataReg, 0x20);    // Fixed CRC
-    HAL_Delay(2);  // Delay for stability
+    osDelay(2);  // Delay for stability
     MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Transceive);
     MFRC522_SetBitMask(dev, PCD_BitFramingReg, 0x80);
 
-    uint32_t timeout = HAL_GetTick() + 25;
-    while (HAL_GetTick() < timeout) {
+    uint32_t timeout = osKernelGetTickCount() + 25;
+    while (osKernelGetTickCount() < timeout) {
         uint8_t status2 = MFRC522_ReadReg(dev, PCD_Status2Reg);
         if (status2 & 0x01) {  // Command complete
             uint8_t err = MFRC522_ReadReg(dev, PCD_ErrorReg);
             if (err & 0x1D) {
                 DEBUG_LOG("Anticoll error: 0x%02X", err);
                 MFRC522_AntennaOff(dev);
-                HAL_Delay(5);
+                osDelay(5);
                 MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Idle);
                 return STATUS_ERROR;
             }
@@ -174,26 +202,26 @@ uint8_t MFRC522_Anticoll(MFRC522_t *dev, uint8_t *uid) {  // Returns 4-byte UID 
                 if (uid[4] != calcBcc) {
                     DEBUG_LOG("Anticoll bad BCC: calc=0x%02X, got=0x%02X", calcBcc, uid[4]);
                     MFRC522_AntennaOff(dev);
-                    HAL_Delay(5);
+                    osDelay(5);
                     MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Idle);
                     return STATUS_ERROR;
                 }
                 DEBUG_LOG("Anticoll UID: %02X %02X %02X %02X %02X", uid[0], uid[1], uid[2], uid[3], uid[4]);
                 MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Idle);
-                HAL_Delay(2);  // Post-command delay
+                osDelay(2);  // Post-command delay
                 return STATUS_OK;
             }
             DEBUG_LOG("Anticoll bad FIFO level: %d", fifoLvl);
             MFRC522_AntennaOff(dev);
-            HAL_Delay(5);
+            osDelay(5);
             MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Idle);
             return STATUS_ERROR;
         }
-        HAL_Delay(1);  // Mimic debug log timing
+        osDelay(1);  // Mimic debug log timing
     }
     DEBUG_LOG("Anticoll timeout");
     MFRC522_AntennaOff(dev);
-    HAL_Delay(5);
+    osDelay(5);
     MFRC522_WriteReg(dev, PCD_CommandReg, PCD_Idle);
     return STATUS_TIMEOUT;
 }
@@ -221,7 +249,7 @@ uint8_t waitcardRemoval (MFRC522_t *dev){
         	USER_LOG("Card removed");
             return STATUS_OK; // Card removed, return success
         }
-        HAL_Delay(100); // Poll every 100ms to check if card is still present
+        osDelay(100); // Poll every 100ms to check if card is still present
     }
 }
 
@@ -233,7 +261,7 @@ uint8_t waitcardDetect (MFRC522_t *dev){
 	    	USER_LOG("Card detected");
 	        return STATUS_OK;
 	    }
-	    HAL_Delay(100);	// Poll every 100ms to check if card is  present
+	    osDelay(100);	// Poll every 100ms to check if card is  present
 	}
 }
 

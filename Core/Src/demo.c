@@ -97,7 +97,6 @@ void Touchscreen_Poll(uint8_t *state)
   */
 void Touchscreen_DrawBackground_Circles(uint8_t state)
 {
-  uint16_t x, y;
   switch (state)
   {
     case 0:

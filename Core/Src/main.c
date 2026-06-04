@@ -132,10 +132,6 @@ int main(void)
   UTIL_LCD_SetFuncDriver(&LCD_Driver);
   UTIL_LCD_Clear(UTIL_LCD_COLOR_WHITE);
 
-  strcpy((char*)msg, "\r\nLooking for MFRC522... \r\n");
-  HAL_UART_Transmit(&huart3, msg, strlen((char*)msg), HAL_MAX_DELAY);
-  MFRC522_Init(&rfID);
-
   /* USER CODE END 2 */
 
   /* Init scheduler */
@@ -162,6 +158,10 @@ int main(void)
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
+
+  strcpy((char*)msg, "\r\nLooking for MFRC522... \r\n");
+  HAL_UART_Transmit(&huart3, msg, strlen((char*)msg), HAL_MAX_DELAY);
+  MFRC522_Init(&rfID);
   /* add threads, ... */
   /* creation of taskLED */
   taskLEDHandle = osThreadNew(StartTaskLED, NULL, &taskLED_attributes);
