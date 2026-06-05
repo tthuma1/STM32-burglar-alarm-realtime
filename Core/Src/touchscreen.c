@@ -17,7 +17,7 @@
 #define BUTTON_Y_SPACING     6
 
 #define INPUT_DOT_RADIUS     8
-#define INPUT_DOT_COUNT      8
+#define INPUT_DOT_COUNT      4
 
 #define TS_KEY_NONE          255
 #define TS_KEY_BACK          254
@@ -126,7 +126,7 @@ static void Touchscreen_DrawKeypad(void)
     {
       uint16_t x0 = BUTTON_START_X + col * (BUTTON_WIDTH + BUTTON_X_SPACING);
       uint16_t y0 = BUTTON_START_Y + row * (BUTTON_HEIGHT + BUTTON_Y_SPACING);
-      uint32_t color = UTIL_LCD_COLOR_LIGHTBLUE;
+      uint32_t color = UTIL_LCD_COLOR_WHITE;
 
       if (keyCodes[row][col] == TS_KEY_BACK)
       {
