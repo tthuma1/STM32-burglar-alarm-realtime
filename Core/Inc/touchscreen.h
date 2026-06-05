@@ -14,6 +14,10 @@ extern "C" {
 
 void Touchscreen_Init(void);
 void Touchscreen_Poll(void);
+void Touchscreen_SetAlarmStatus(const char *status);
+const char* Touchscreen_GetPINBuffer(void);
+uint8_t Touchscreen_ValidatePIN(void);
+void Touchscreen_ResetPIN(void);
 
 #ifdef __cplusplus
 }

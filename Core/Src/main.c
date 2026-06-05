@@ -73,6 +73,10 @@ UART_HandleTypeDef huart3;
 
 uint8_t txFWversion[128];
 uint8_t msg[256];
+
+AlarmState_t g_alarmState = ALARM_STATE_WAITING_FOR_MOTION;
+uint8_t g_validPINEntered = 0;
+osSemaphoreId_t g_rfidListenSignal;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -143,7 +147,7 @@ int main(void)
   /* USER CODE END RTOS_MUTEX */
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
-  /* add semaphores, ... */
+  g_rfidListenSignal = osSemaphoreNew(1, 0, NULL);
   /* USER CODE END RTOS_SEMAPHORES */
 
   /* USER CODE BEGIN RTOS_TIMERS */
@@ -492,29 +496,65 @@ void StartTaskRFID(void *argument)
   strcpy((char*)msg, "\r\nLooking for MFRC522... \r\n");
   HAL_UART_Transmit(&huart3, msg, strlen((char*)msg), HAL_MAX_DELAY);
   MFRC522_Init(&rfID);
-	USER_LOG("Waiting for the card...");
+  USER_LOG("Waiting for motion detection...");
   uint8_t is_card_present = 0;
+  
   /* Infinite loop */
   for(;;)
   {
-    if (!is_card_present) {
-      if (checkCardDetect(&rfID) == STATUS_OK){
-        is_card_present = 1;
-        USER_LOG("Waiting for card removal...");
+    osStatus_t semStatus = osSemaphoreAcquire(g_rfidListenSignal, osWaitForever);
+    
+    if (semStatus == osOK)
+    {
+      g_alarmState = ALARM_STATE_MOTION_DETECTED;
+      Touchscreen_SetAlarmStatus("Motion detected");
+      USER_LOG("Motion detected! Listening for RFID card...");
+      g_validPINEntered = 0;
+      Touchscreen_ResetPIN();
+    }
+    
+    if (g_alarmState == ALARM_STATE_MOTION_DETECTED)
+    {
+      if (!is_card_present)
+      {
+        if (checkCardDetect(&rfID) == STATUS_OK)
+        {
+          is_card_present = 1;
+          USER_LOG("Waiting for card removal...");
 
-        if (MFRC522_ReadUid(&rfID, uid) == STATUS_OK){
-          USER_LOG("CARD ID:%02X %02X %02X %02X", uid[0], uid[1], uid[2], uid[3]);
-          if ((uid[0] == 0xCA) && (uid[1] == 0xC3) &&(uid[2] == 0x58) &&(uid[3] == 0x1A)){
-            // TODO start blinking the LED in taskLED
+          if (MFRC522_ReadUid(&rfID, uid) == STATUS_OK)
+          {
+            USER_LOG("CARD ID:%02X %02X %02X %02X", uid[0], uid[1], uid[2], uid[3]);
+            if ((uid[0] == 0xCA) && (uid[1] == 0xC3) && (uid[2] == 0x58) && (uid[3] == 0x1A))
+            {
+              if (g_validPINEntered)
+              {
+                g_alarmState = ALARM_STATE_ALARM_ON;
+                Touchscreen_SetAlarmStatus("Alarm on");
+                Touchscreen_ResetPIN();
+                USER_LOG("Alarm armed! Waiting for next motion...");
+              }
+              else
+              {
+                USER_LOG("Invalid PIN. Card rejected.");
+              }
+            }
           }
         }
       }
-    } else {
-		  if (checkCardRemoval(&rfID) == STATUS_OK) {
-        is_card_present = 0;
-        USER_LOG("Waiting for the card...");
+      else
+      {
+        if (checkCardRemoval(&rfID) == STATUS_OK)
+        {
+          is_card_present = 0;
+          if (g_alarmState == ALARM_STATE_ALARM_ON)
+          {
+            g_alarmState = ALARM_STATE_WAITING_FOR_MOTION;
+          }
+        }
       }
     }
+    
     osDelay(100);
   }
   /* USER CODE END StartTaskLED */
@@ -534,11 +574,29 @@ void StartDefaultTask(void *argument)
   /* USER CODE BEGIN 5 */
   Touchscreen_Init();   // init once
 
+  static uint8_t lastPINLength = 0;
+
   /* Infinite loop */
   for(;;)
   {
-    Touchscreen_Poll();            // non-blocking poll
-    osDelay(20);                   // yields; ~50 Hz touch check
+    Touchscreen_Poll();
+
+    uint8_t currentPINLength = strlen(Touchscreen_GetPINBuffer());
+    
+    if (currentPINLength > lastPINLength && currentPINLength == 4)
+    {
+      if (Touchscreen_ValidatePIN())
+      {
+        g_validPINEntered = 1;
+      }
+      lastPINLength = currentPINLength;
+    }
+    else if (currentPINLength < lastPINLength)
+    {
+      lastPINLength = currentPINLength;
+    }
+    
+    osDelay(20);
   }
   /* USER CODE END 5 */
 }
