@@ -25,6 +25,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <string.h>
+#include "cmsis_os.h"
+#include "touchscreen.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -208,9 +210,12 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   if (GPIO_Pin == GPIO_PIN_3)   /* PG3 = D2 on Arduino header  */
   {
-    const char *msg = "Motion detected!\r\n";
-    HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
-    // TODO start listening for a card in taskRFID
+    if (g_alarmState == ALARM_STATE_WAITING_FOR_MOTION)
+    {
+      osSemaphoreRelease(g_rfidListenSignal);
+      const char *msg = "Motion detected! Waiting for RFID card and PIN...\r\n";
+      HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+    }
   }
 }
 

@@ -44,6 +44,7 @@ static char inputBuffer[INPUT_DOT_COUNT + 1];
 static uint8_t inputLength = 0;
 static bool touchActive = false;
 static char statusText[16] = "Enter PIN";
+static char alarmStatus[16] = "Alarm on";
 
 static void Touchscreen_DrawTextCentered(uint16_t x, uint16_t y, uint16_t width, const char *text)
 {
@@ -96,6 +97,17 @@ static void Touchscreen_DrawStatusText(void)
   UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_LIGHTGRAY);
   UTIL_LCD_SetFont(&Font20);
   Touchscreen_DrawTextCentered(INPUT_RECT_X, INPUT_RECT_Y + 8, INPUT_RECT_W, statusText);
+}
+
+static void Touchscreen_DrawAlarmStatus(void)
+{
+  uint16_t alarmX = BUTTON_START_X + 2 * (BUTTON_WIDTH + BUTTON_X_SPACING);
+  uint16_t alarmY = BUTTON_START_Y - 40;
+  
+  UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_BLACK);
+  UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_WHITE);
+  UTIL_LCD_SetFont(&Font20);
+  UTIL_LCD_DisplayStringAt(alarmX - 20, alarmY, (uint8_t *)alarmStatus, LEFT_MODE);
 }
 
 static void Touchscreen_DrawInputField(void)
@@ -207,9 +219,11 @@ void Touchscreen_Init(void)
   inputLength = 0;
   memset(inputBuffer, 0, sizeof(inputBuffer));
   strncpy(statusText, "Enter PIN", sizeof(statusText));
+  strncpy(alarmStatus, "Alarm on", sizeof(alarmStatus));
   touchActive = false;
 
   Touchscreen_DrawInputField();
+  Touchscreen_DrawAlarmStatus();
   Touchscreen_DrawKeypad();
 }
 
@@ -234,4 +248,32 @@ void Touchscreen_Poll(void)
   uint16_t y = TS_State.TouchY;
   uint8_t key = Touchscreen_GetTouchedKey(x, y);
   Touchscreen_ProcessKey(key);
+}
+
+void Touchscreen_SetAlarmStatus(const char *status)
+{
+  if (status != NULL)
+  {
+    strncpy(alarmStatus, status, sizeof(alarmStatus) - 1);
+    alarmStatus[sizeof(alarmStatus) - 1] = '\0';
+    Touchscreen_DrawAlarmStatus();
+  }
+}
+
+const char* Touchscreen_GetPINBuffer(void)
+{
+  return inputBuffer;
+}
+
+uint8_t Touchscreen_ValidatePIN(void)
+{
+  return (strcmp(inputBuffer, "1234") == 0) ? 1 : 0;
+}
+
+void Touchscreen_ResetPIN(void)
+{
+  inputLength = 0;
+  memset(inputBuffer, 0, sizeof(inputBuffer));
+  strncpy(statusText, "Enter PIN", sizeof(statusText));
+  Touchscreen_DrawInputField();
 }

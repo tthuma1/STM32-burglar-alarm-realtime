@@ -42,6 +42,17 @@ extern "C" {
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
 
+typedef enum {
+  ALARM_STATE_WAITING_FOR_MOTION,
+  ALARM_STATE_MOTION_DETECTED,
+  ALARM_STATE_WAITING_FOR_RFID,
+  ALARM_STATE_ALARM_ON
+} AlarmState_t;
+
+extern AlarmState_t g_alarmState;
+extern uint8_t g_validPINEntered;
+extern osSemaphoreId_t g_rfidListenSignal;
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
