@@ -1,5 +1,5 @@
-#ifndef __DEMO_H
-#define __DEMO_H
+#ifndef __TOUCHSCREEN_H
+#define __TOUCHSCREEN_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -13,13 +13,10 @@ extern "C" {
 #include "stm32_lcd.h"
 
 void Touchscreen_Init(void);
-void Touchscreen_Poll(uint8_t *state);
-void Error_Handler(void);
-void Touchscreen_DrawBackground_Circles(uint8_t state);
-uint8_t TouchScreen_GetTouchPosition(void);
+void Touchscreen_Poll(void);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __DEMO_H */
+#endif /* __TOUCHSCREEN_H */

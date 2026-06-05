@@ -22,7 +22,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "demo.h"
+#include "touchscreen.h"
 #include "mfrc522.h"
 #include <stdio.h>
 /* USER CODE END Includes */
@@ -504,16 +504,8 @@ void StartTaskRFID(void *argument)
 
         if (MFRC522_ReadUid(&rfID, uid) == STATUS_OK){
           USER_LOG("CARD ID:%02X %02X %02X %02X", uid[0], uid[1], uid[2], uid[3]);
-          if ((uid[0] == 0x06) && (uid[1] == 0x04) &&(uid[2] == 0x27) &&(uid[3] == 0x1F)){
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
-            osDelay(1000);
-            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
-          }
-
-          else if ((uid[0] == 0x1D) && (uid[1] == 0x7D) &&(uid[2] == 0xCD) &&(uid[3] == 0x73)){
-            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
-            osDelay(1000);
-            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
+          if ((uid[0] == 0xCA) && (uid[1] == 0xC3) &&(uid[2] == 0x58) &&(uid[3] == 0x1A)){
+            // TODO start blinking the LED in taskLED
           }
         }
       }
@@ -540,14 +532,13 @@ void StartTaskRFID(void *argument)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
-  uint8_t ts_state = 0;
   Touchscreen_Init();   // init once
 
   /* Infinite loop */
   for(;;)
   {
-    Touchscreen_Poll(&ts_state);  // non-blocking poll
-    osDelay(20);                  // yields; ~50 Hz touch check  
+    Touchscreen_Poll();            // non-blocking poll
+    osDelay(20);                   // yields; ~50 Hz touch check
   }
   /* USER CODE END 5 */
 }

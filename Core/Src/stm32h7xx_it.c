@@ -210,6 +210,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   {
     const char *msg = "Motion detected!\r\n";
     HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+    // TODO start listening for a card in taskRFID
   }
 }
 
