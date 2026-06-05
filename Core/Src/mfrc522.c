@@ -8,28 +8,13 @@ uint8_t atqa[2];
 extern UART_HandleTypeDef huart3;
 static char _log_buf[128];
 
-static void rfid_log(const char *fmt, ...) {
+void rfid_log(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);
     int len = vsnprintf(_log_buf, sizeof(_log_buf), fmt, args);
     va_end(args);
     HAL_UART_Transmit(&huart3, (uint8_t*)_log_buf, len, 999);
 }
-
-#undef USER_LOG
-#undef DEBUG_LOG
-
-#if ENABLE_USER_LOG
-  #define USER_LOG(fmt, ...) rfid_log("[USER] " fmt "\r\n", ##__VA_ARGS__)
-#else
-  #define USER_LOG(fmt, ...)
-#endif
-
-#if ENABLE_DEBUG_LOG
-  #define DEBUG_LOG(fmt, ...) rfid_log("[DEBUG] " fmt "\r\n", ##__VA_ARGS__)
-#else
-  #define DEBUG_LOG(fmt, ...)
-#endif
 
 void MFRC522_Init(MFRC522_t *dev) {
     USER_LOG("MFRC522 Min Init started");
@@ -265,4 +250,21 @@ uint8_t waitcardDetect (MFRC522_t *dev){
 	}
 }
 
+uint8_t checkCardRemoval (MFRC522_t *dev){
+    if (MFRC522_RequestA(dev, atqa) != STATUS_OK) {
+        USER_LOG("Card removed");
+        return STATUS_OK; // Card removed, return success
+    }
 
+    return STATUS_ERROR;
+}
+
+uint8_t checkCardDetect (MFRC522_t *dev){
+	atqa[0] = atqa[1] = 0;
+    if (MFRC522_RequestA(dev, atqa) == STATUS_OK) {
+        USER_LOG("Card detected");
+        return STATUS_OK;
+    }
+
+    return STATUS_ERROR;
+}

@@ -49,14 +49,21 @@
 osThreadId_t defaultTaskHandle;
 const osThreadAttr_t defaultTask_attributes = {
   .name = "defaultTask",
-  .stack_size = 128 * 4,
+  .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 /* USER CODE BEGIN PV */
 osThreadId_t taskLEDHandle;
 const osThreadAttr_t taskLED_attributes = {
   .name = "taskLED",
-  .stack_size = 128 * 4,
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
+osThreadId_t taskRFIDHandle;
+const osThreadAttr_t taskRFID_attributes = {
+  .name = "taskRFID",
+  .stack_size = 1024 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
 
@@ -80,17 +87,11 @@ static void MX_TIM3_Init(void);
 void LED_Breathe(void);
 
 void StartTaskLED(void *argument);
+void StartTaskRFID(void *argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-int _write(int fd, unsigned char *buf, int len) {
-  if (fd == 1 || fd == 2) {                     // stdout or stderr ?
-    HAL_UART_Transmit(&huart3, buf, len, 999);  // Print to the UART
-  }
-  return len;
-}
-
 uint8_t uid[4];
 
 MFRC522_t rfID = {&hspi2, CS_GPIO_Port, CS_Pin, RESET_GPIO_Port, RESET_Pin};
@@ -158,13 +159,10 @@ int main(void)
   defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
-
-  strcpy((char*)msg, "\r\nLooking for MFRC522... \r\n");
-  HAL_UART_Transmit(&huart3, msg, strlen((char*)msg), HAL_MAX_DELAY);
-  MFRC522_Init(&rfID);
   /* add threads, ... */
   /* creation of taskLED */
   taskLEDHandle = osThreadNew(StartTaskLED, NULL, &taskLED_attributes);
+  taskRFIDHandle = osThreadNew(StartTaskRFID, NULL, &taskRFID_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -467,7 +465,7 @@ void LED_Breathe()
 }
 
 /**
-* @brief Function implementing the myTask02 thread.
+* @brief Function implementing the taskLED thread.
 * @param argument: Not used
 * @retval None
 */
@@ -482,6 +480,54 @@ void StartTaskLED(void *argument)
   }
   /* USER CODE END StartTaskLED */
 }
+
+/**
+* @brief Function implementing the taskRFID thread.
+* @param argument: Not used
+* @retval None
+*/
+void StartTaskRFID(void *argument)
+{
+  /* USER CODE BEGIN StartTaskLED */
+  strcpy((char*)msg, "\r\nLooking for MFRC522... \r\n");
+  HAL_UART_Transmit(&huart3, msg, strlen((char*)msg), HAL_MAX_DELAY);
+  MFRC522_Init(&rfID);
+	USER_LOG("Waiting for the card...");
+  uint8_t is_card_present = 0;
+  /* Infinite loop */
+  for(;;)
+  {
+    if (!is_card_present) {
+      if (checkCardDetect(&rfID) == STATUS_OK){
+        is_card_present = 1;
+        USER_LOG("Waiting for card removal...");
+
+        if (MFRC522_ReadUid(&rfID, uid) == STATUS_OK){
+          USER_LOG("CARD ID:%02X %02X %02X %02X", uid[0], uid[1], uid[2], uid[3]);
+          if ((uid[0] == 0x06) && (uid[1] == 0x04) &&(uid[2] == 0x27) &&(uid[3] == 0x1F)){
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+            osDelay(1000);
+            HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
+          }
+
+          else if ((uid[0] == 0x1D) && (uid[1] == 0x7D) &&(uid[2] == 0xCD) &&(uid[3] == 0x73)){
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_SET);
+            osDelay(1000);
+            HAL_GPIO_WritePin(GPIOB, GPIO_PIN_15, GPIO_PIN_RESET);
+          }
+        }
+      }
+    } else {
+		  if (checkCardRemoval(&rfID) == STATUS_OK) {
+        is_card_present = 0;
+        USER_LOG("Waiting for the card...");
+      }
+    }
+    osDelay(100);
+  }
+  /* USER CODE END StartTaskLED */
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */

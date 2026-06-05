@@ -11,13 +11,13 @@
 #define ENABLE_DEBUG_LOG  0 // Test with this disabled
 
 #if ENABLE_USER_LOG
-  #define USER_LOG(fmt, ...) printf("[USER] " fmt "\r\n", ##__VA_ARGS__)
+  #define USER_LOG(fmt, ...) rfid_log("[USER] " fmt "\r\n", ##__VA_ARGS__)
 #else
   #define USER_LOG(fmt, ...)
 #endif
 
 #if ENABLE_DEBUG_LOG
-  #define DEBUG_LOG(fmt, ...) printf("[DEBUG] " fmt "\r\n", ##__VA_ARGS__)
+  #define DEBUG_LOG(fmt, ...) rfid_log("[DEBUG] " fmt "\r\n", ##__VA_ARGS__)
 #else
   #define DEBUG_LOG(fmt, ...)
 #endif
@@ -63,6 +63,8 @@ typedef struct {
 } MFRC522_t;
 
 // Prototypes
+void rfid_log(const char *fmt, ...);
+
 void MFRC522_Init(MFRC522_t *dev);
 void MFRC522_AntennaOff(MFRC522_t *dev);
 void MFRC522_AntennaOn(MFRC522_t *dev);
@@ -73,7 +75,9 @@ void MFRC522_ClearBitMask(MFRC522_t *dev, uint8_t reg, uint8_t mask);
 uint8_t MFRC522_RequestA(MFRC522_t *dev, uint8_t *atqa);
 uint8_t MFRC522_Anticoll(MFRC522_t *dev, uint8_t *uid);
 uint8_t MFRC522_ReadUid(MFRC522_t *dev, uint8_t *uid);
-uint8_t waitcardRemoval (MFRC522_t *dev);
-uint8_t waitcardDetect (MFRC522_t *dev);
+// uint8_t waitcardRemoval (MFRC522_t *dev);
+// uint8_t waitcardDetect (MFRC522_t *dev);
+uint8_t checkCardRemoval (MFRC522_t *dev);
+uint8_t checkCardDetect (MFRC522_t *dev);
 
 #endif // MFRC522_MIN_H
