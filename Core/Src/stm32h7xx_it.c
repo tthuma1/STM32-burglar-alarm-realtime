@@ -233,9 +233,9 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
       HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
 
       if (!tim6_running) {
+  	    tim6_running = 1;
         __HAL_TIM_SET_COUNTER(&htim6, 0);
         HAL_TIM_Base_Start_IT(&htim6);
-        tim6_running = 1;
       }
     }
   }
