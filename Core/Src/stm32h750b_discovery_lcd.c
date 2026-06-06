@@ -296,6 +296,8 @@ int32_t BSP_LCD_InitEx(uint32_t Instance, uint32_t Orientation, uint32_t PixelFo
 
       /* Initialize TIM in PWM mode to control brightness */
       TIMx_PWM_Init(&hlcd_tim);
+      // brightness control here!
+      (void)BSP_LCD_SetBrightness(Instance, 40U);
 
       /* By default the reload is activated and executed immediately */
       Lcd_Ctx[Instance].ReloadEnable = 1U;
@@ -1364,7 +1366,7 @@ static void LTDC_MspInit(LTDC_HandleTypeDef *hltdc)
     gpio_init_structure.Alternate = GPIO_AF14_LTDC;
     HAL_GPIO_Init(GPIOJ, &gpio_init_structure);
     /* GPIOK configuration */
-    gpio_init_structure.Pin       = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | \
+    gpio_init_structure.Pin       = GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | \
                                     GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7;
     gpio_init_structure.Alternate = GPIO_AF14_LTDC;
     HAL_GPIO_Init(GPIOK, &gpio_init_structure);
@@ -1409,7 +1411,7 @@ static void LTDC_MspDeInit(LTDC_HandleTypeDef *hltdc)
     gpio_init_structure.Pin       = GPIO_PIN_All;
     HAL_GPIO_DeInit(GPIOJ, gpio_init_structure.Pin);
     /* GPIOK deactivation */
-    gpio_init_structure.Pin       = GPIO_PIN_0 | GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | \
+    gpio_init_structure.Pin       = GPIO_PIN_1 | GPIO_PIN_2 | GPIO_PIN_3 | \
                                     GPIO_PIN_4 | GPIO_PIN_5 | GPIO_PIN_6 | GPIO_PIN_7;
     HAL_GPIO_DeInit(GPIOK, gpio_init_structure.Pin);
 
