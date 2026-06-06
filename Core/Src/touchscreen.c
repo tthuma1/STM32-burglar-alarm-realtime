@@ -1,4 +1,5 @@
 #include "touchscreen.h"
+#include "main.h"
 #include <stdbool.h>
 
 #define SCREEN_WIDTH         480
@@ -60,7 +61,7 @@ static uint8_t inputLength = 0;
 static uint8_t sideButtonIndex = 0;
 static bool touchActive = false;
 static char statusText[16] = "Enter PIN";
-static char alarmStatus[16] = "Alarm on";
+static char alarmStatus[16] = "Alarm off";
 
 static void Touchscreen_DrawTextCentered(uint16_t x, uint16_t y, uint16_t width, const char *text)
 {
@@ -210,8 +211,30 @@ static void Touchscreen_ProcessKey(uint8_t key)
   }
   else if (key == TS_KEY_SIDE_CONTROL)
   {
-    sideButtonIndex = (sideButtonIndex + 1) % 2;
-    strncpy(statusText, "Mode set", sizeof(statusText));
+    /* Toggle side button state and notify RFID task when turning ON */
+    if (sideButtonIndex == 0)
+    {
+      /* Turn On pressed: signal RFID task to start listening */
+      if (taskRFIDHandle != NULL)
+      {
+        osThreadFlagsSet(taskRFIDHandle, RFID_LISTEN_FLAG);
+      }
+      strncpy(statusText, "Scan card...", sizeof(statusText));
+      sideButtonIndex = 1;
+    }
+    else
+    {
+      /* Turn Off pressed: set alarm state off */
+      g_alarmState = ALARM_STATE_WAITING_FOR_MOTION;
+      Touchscreen_SetAlarmStatus("Alarm off");
+      strncpy(statusText, "Alarm off", sizeof(statusText));
+      /* Notify RFID task to stop listening if it's active */
+      if (taskRFIDHandle != NULL)
+      {
+        osThreadFlagsSet(taskRFIDHandle, RFID_STOP_FLAG);
+      }
+      sideButtonIndex = 0;
+    }
   }
   else if ((key <= 9) && (inputLength < INPUT_DOT_COUNT))
   {
@@ -248,7 +271,7 @@ void Touchscreen_Init(void)
   inputLength = 0;
   memset(inputBuffer, 0, sizeof(inputBuffer));
   strncpy(statusText, "Enter PIN", sizeof(statusText));
-  strncpy(alarmStatus, "Alarm on", sizeof(alarmStatus));
+  strncpy(alarmStatus, "Alarm off", sizeof(alarmStatus));
   touchActive = false;
 
   Touchscreen_DrawInputField();

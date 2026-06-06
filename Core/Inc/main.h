@@ -53,7 +53,12 @@ typedef enum {
 
 extern AlarmState_t g_alarmState;
 extern uint8_t g_validPINEntered;
-extern osSemaphoreId_t g_rfidListenSignal;
+/* Thread-flag used to notify taskRFID to start listening for cards */
+#define RFID_LISTEN_FLAG (1U<<0)
+/* Thread-flag used to notify taskRFID to stop listening for cards */
+#define RFID_STOP_FLAG   (1U<<1)
+
+extern osThreadId_t taskRFIDHandle;
 
 /* USER CODE END EC */
 
