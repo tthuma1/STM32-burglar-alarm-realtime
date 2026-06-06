@@ -18,7 +18,6 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -69,10 +68,13 @@ const osThreadAttr_t taskRFID_attributes = {
 
 SPI_HandleTypeDef hspi2;
 TIM_HandleTypeDef htim3;
+TIM_HandleTypeDef htim6;
 UART_HandleTypeDef huart3;
 
 uint8_t txFWversion[128];
 uint8_t msg[256];
+
+uint8_t tim6_running = 0;
 
 AlarmState_t g_alarmState = ALARM_STATE_WAITING_FOR_MOTION;
 uint8_t g_validPINEntered = 0;
@@ -88,6 +90,7 @@ static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_SPI2_Init(void);
 static void MX_TIM3_Init(void);
+static void MX_TIM6_Init(void);
 void LED_Breathe(void);
 
 void StartTaskLED(void *argument);
@@ -129,6 +132,7 @@ int main(void)
   MX_USART3_UART_Init();
   MX_SPI2_Init();
   MX_TIM3_Init();
+  MX_TIM6_Init();
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -299,6 +303,44 @@ static void MX_TIM3_Init(void)
 
   /* USER CODE END TIM3_Init 2 */
   HAL_TIM_MspPostInit(&htim3);
+}
+
+/**
+  * @brief TIM6 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM6_Init(void)
+{
+
+  /* USER CODE BEGIN TIM6_Init 0 */
+
+  /* USER CODE END TIM6_Init 0 */
+
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM6_Init 1 */
+
+  /* USER CODE END TIM6_Init 1 */
+  htim6.Instance = TIM6;
+  htim6.Init.Prescaler = 9999;
+  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
+  htim6.Init.Period = 63999;
+  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM6_Init 2 */
+
+  /* USER CODE END TIM6_Init 2 */
+
 }
 
 /**
@@ -507,7 +549,7 @@ void StartTaskRFID(void *argument)
     if (semStatus == osOK)
     {
       g_alarmState = ALARM_STATE_MOTION_DETECTED;
-      Touchscreen_SetAlarmStatus("Motion detected");
+      Touchscreen_SetAlarmStatus("Motion!");
       USER_LOG("Motion detected! Listening for RFID card...");
       g_validPINEntered = 0;
       Touchscreen_ResetPIN();

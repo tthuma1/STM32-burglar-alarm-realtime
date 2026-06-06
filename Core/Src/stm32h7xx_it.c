@@ -62,7 +62,9 @@
 /* External variables --------------------------------------------------------*/
 
 /* USER CODE BEGIN EV */
+extern TIM_HandleTypeDef htim6;
 extern UART_HandleTypeDef huart3;
+extern uint8_t tim6_running;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -203,6 +205,20 @@ void EXTI3_IRQHandler(void)
 }
 
 /**
+  * @brief This function handles TIM6 global interrupt, DAC1_CH1 and DAC1_CH2 underrun error interrupts.
+  */
+void TIM6_DAC_IRQHandler(void)
+{
+  /* USER CODE BEGIN TIM6_DAC_IRQn 0 */
+
+  /* USER CODE END TIM6_DAC_IRQn 0 */
+  HAL_TIM_IRQHandler(&htim6);
+  /* USER CODE BEGIN TIM6_DAC_IRQn 1 */
+
+  /* USER CODE END TIM6_DAC_IRQn 1 */
+}
+
+/**
  * @brief  Called by HAL whenever any EXTI line fires.
  *         We filter for PG3 (GPIO_PIN_3, GPIOG).
  */
@@ -215,8 +231,24 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
       osSemaphoreRelease(g_rfidListenSignal);
       const char *msg = "Motion detected! Waiting for RFID card and PIN...\r\n";
       HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+
+      if (!tim6_running) {
+        __HAL_TIM_SET_COUNTER(&htim6, 0);
+        HAL_TIM_Base_Start_IT(&htim6);
+        tim6_running = 1;
+      }
     }
   }
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM6)
+    {
+        HAL_TIM_Base_Stop_IT(&htim6);
+        __HAL_TIM_SET_COUNTER(&htim6, 0);
+        tim6_running = 0;
+    }
 }
 
 /* USER CODE END 1 */
