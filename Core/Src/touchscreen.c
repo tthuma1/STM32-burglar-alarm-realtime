@@ -60,6 +60,7 @@ static char inputBuffer[INPUT_DOT_COUNT + 1];
 static uint8_t inputLength = 0;
 static uint8_t sideButtonIndex = 0;
 static bool touchActive = false;
+static bool redrawPending = false;
 static char alarmStatus[16] = "Alarm off";
 
 static void Touchscreen_DrawTextCentered(uint16_t x, uint16_t y, uint16_t width, const char *text)
@@ -231,9 +232,7 @@ static void Touchscreen_ProcessKey(uint8_t key)
     inputBuffer[inputLength] = '\0';
   }
 
-  Touchscreen_DrawInputField();
-  Touchscreen_DrawAlarmStatus();
-  Touchscreen_DrawSideButton();
+  redrawPending = true;
 }
 
 void Touchscreen_Init(void)
@@ -288,6 +287,20 @@ void Touchscreen_Poll(void)
   uint16_t y = TS_State.TouchY;
   uint8_t key = Touchscreen_GetTouchedKey(x, y);
   Touchscreen_ProcessKey(key);
+}
+
+void Touchscreen_Render(void)
+{
+  if (!redrawPending)
+  {
+    return;
+  }
+
+  redrawPending = false;
+  Touchscreen_DrawInputField();
+  Touchscreen_DrawAlarmStatus();
+  Touchscreen_DrawKeypad();
+  Touchscreen_DrawSideButton();
 }
 
 void Touchscreen_SetAlarmStatus(const char *status)

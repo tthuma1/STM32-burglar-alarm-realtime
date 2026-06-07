@@ -668,6 +668,7 @@ void StartDefaultTask(void *argument)
   for(;;)
   {
     Touchscreen_Poll();
+    Touchscreen_Render();
 
     uint8_t currentPINLength = strlen(Touchscreen_GetPINBuffer());
     
