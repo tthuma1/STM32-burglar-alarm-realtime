@@ -60,7 +60,6 @@ static char inputBuffer[INPUT_DOT_COUNT + 1];
 static uint8_t inputLength = 0;
 static uint8_t sideButtonIndex = 0;
 static bool touchActive = false;
-static char statusText[16] = "Enter PIN";
 static char alarmStatus[16] = "Alarm off";
 
 static void Touchscreen_DrawTextCentered(uint16_t x, uint16_t y, uint16_t width, const char *text)
@@ -99,7 +98,7 @@ static uint8_t Touchscreen_GetTouchedKey(uint16_t x, uint16_t y)
 static void Touchscreen_UpdateInputIndicators(void)
 {
   uint16_t baseX = SCREEN_WIDTH / 2 - ((INPUT_DOT_COUNT * INPUT_DOT_RADIUS * 2 + (INPUT_DOT_COUNT - 1) * 14) / 2);
-  uint16_t centerY = INPUT_RECT_Y + INPUT_RECT_H - 18;
+  uint16_t centerY = INPUT_RECT_Y + INPUT_RECT_H - 28;
 
   for (uint8_t i = 0; i < INPUT_DOT_COUNT; i++)
   {
@@ -114,14 +113,7 @@ static void Touchscreen_UpdateInputIndicators(void)
   }
 }
 
-static void Touchscreen_DrawStatusText(void)
-{
-  UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_BLACK);
-  UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_LIGHTGRAY);
-  UTIL_LCD_SetFont(&Font20);
-  uint16_t textY = INPUT_RECT_Y + (INPUT_RECT_H - Font20.Height) / 4;
-  Touchscreen_DrawTextCentered(INPUT_RECT_X, textY, INPUT_RECT_W, statusText);
-}
+// Removed status text display per request
 
 static void Touchscreen_DrawAlarmStatus(void)
 {
@@ -154,7 +146,7 @@ static void Touchscreen_DrawInputField(void)
   UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_BLACK);
   UTIL_LCD_DrawRect(INPUT_RECT_X, INPUT_RECT_Y, INPUT_RECT_W, INPUT_RECT_H, UTIL_LCD_COLOR_BLACK);
   UTIL_LCD_FillRect(INPUT_RECT_X + 1, INPUT_RECT_Y + 1, INPUT_RECT_W - 2, INPUT_RECT_H - 2, UTIL_LCD_COLOR_LIGHTGRAY);
-  Touchscreen_DrawStatusText();
+  // status text removed; keep input indicators only
   Touchscreen_UpdateInputIndicators();
 }
 
@@ -202,11 +194,10 @@ static void Touchscreen_ProcessKey(uint8_t key)
     {
       inputLength--;
       inputBuffer[inputLength] = '\0';
-      strncpy(statusText, "Enter PIN", sizeof(statusText));
     }
     else
     {
-      strncpy(statusText, "Empty", sizeof(statusText));
+      /* status text removed */
     }
   }
   else if (key == TS_KEY_SIDE_CONTROL)
@@ -219,7 +210,7 @@ static void Touchscreen_ProcessKey(uint8_t key)
       {
         osThreadFlagsSet(taskRFIDHandle, RFID_LISTEN_FLAG);
       }
-      strncpy(statusText, "Scan card...", sizeof(statusText));
+      Touchscreen_SetAlarmStatus("Enter PIN");
       sideButtonIndex = 1;
     }
     else
@@ -227,7 +218,6 @@ static void Touchscreen_ProcessKey(uint8_t key)
       /* Turn Off pressed: set alarm state off */
       g_alarmState = ALARM_STATE_WAITING_FOR_MOTION;
       Touchscreen_SetAlarmStatus("Alarm off");
-      strncpy(statusText, "Alarm off", sizeof(statusText));
       /* Notify RFID task to stop listening if it's active */
       if (taskRFIDHandle != NULL)
       {
@@ -240,7 +230,6 @@ static void Touchscreen_ProcessKey(uint8_t key)
   {
     inputBuffer[inputLength++] = '0' + key;
     inputBuffer[inputLength] = '\0';
-    strncpy(statusText, "Enter PIN", sizeof(statusText));
   }
 
   Touchscreen_DrawInputField();
@@ -270,7 +259,6 @@ void Touchscreen_Init(void)
 
   inputLength = 0;
   memset(inputBuffer, 0, sizeof(inputBuffer));
-  strncpy(statusText, "Enter PIN", sizeof(statusText));
   strncpy(alarmStatus, "Alarm off", sizeof(alarmStatus));
   touchActive = false;
 
@@ -327,6 +315,5 @@ void Touchscreen_ResetPIN(void)
 {
   inputLength = 0;
   memset(inputBuffer, 0, sizeof(inputBuffer));
-  strncpy(statusText, "Enter PIN", sizeof(statusText));
   Touchscreen_DrawInputField();
 }
