@@ -216,13 +216,12 @@ static void Touchscreen_ProcessKey(uint8_t key)
     else
     {
       /* Turn Off pressed: set alarm state off */
-      g_alarmState = ALARM_STATE_WAITING_FOR_MOTION;
-      Touchscreen_SetAlarmStatus("Alarm off");
       /* Notify RFID task to stop listening if it's active */
       if (taskRFIDHandle != NULL)
       {
-        osThreadFlagsSet(taskRFIDHandle, RFID_STOP_FLAG);
+        osThreadFlagsSet(taskRFIDHandle, RFID_LISTEN_FLAG);
       }
+      Touchscreen_SetAlarmStatus("Enter PIN");
       sideButtonIndex = 0;
     }
   }

@@ -76,7 +76,7 @@ uint8_t msg[256];
 
 uint8_t tim6_running = 0;
 
-AlarmState_t g_alarmState = ALARM_STATE_WAITING_FOR_MOTION;
+AlarmState_t g_alarmState = ALARM_STATE_ALARM_OFF;
 uint8_t g_validPINEntered = 0;
 /* USER CODE END PV */
 
@@ -335,6 +335,9 @@ static void MX_TIM6_Init(void)
   {
     Error_Handler();
   }
+  /* Configure NVIC for TIM6 so callbacks can safely use RTOS APIs */
+  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
   /* USER CODE BEGIN TIM6_Init 2 */
 
   /* USER CODE END TIM6_Init 2 */
@@ -491,12 +494,17 @@ static void MX_GPIO_Init(void)
   /* USER CODE END MX_GPIO_Init_2 */
 }
 
-void LED_Breathe() 
+void LED_Breathe(void)
 {
   // Fade IN: 0% → 100%
   for (uint32_t i = 0; i <= PWM_STEPS; i++)
   {
       __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
+      if (osThreadFlagsWait(LED_BREATHE_STOP_FLAG, osFlagsWaitAny | osFlagsNoClear, 0) == LED_BREATHE_STOP_FLAG)
+      {
+          __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
+          return;
+      }
       osDelay(STEP_DELAY);
   }
 
@@ -504,6 +512,11 @@ void LED_Breathe()
   for (int32_t i = PWM_STEPS; i >= 0; i--)
   {
       __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, i);
+      if (osThreadFlagsWait(LED_BREATHE_STOP_FLAG, osFlagsWaitAny | osFlagsNoClear, 0) == LED_BREATHE_STOP_FLAG)
+      {
+          __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
+          return;
+      }
       osDelay(STEP_DELAY);
   }
 }
@@ -517,10 +530,37 @@ void StartTaskLED(void *argument)
 {
   /* USER CODE BEGIN StartTaskLED */
   HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-  /* Infinite loop */
+
   for(;;)
   {
-    LED_Breathe();
+    uint32_t flags = osThreadFlagsWait(LED_BREATHE_START_FLAG | LED_BREATHE_STOP_FLAG,
+                                      osFlagsWaitAny,
+                                      osWaitForever);
+
+    if ((flags & LED_BREATHE_STOP_FLAG) != 0)
+    {
+      __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
+      continue;
+    }
+
+    if ((flags & LED_BREATHE_START_FLAG) != 0)
+    {
+      while (1)
+      {
+        LED_Breathe();
+
+        /* If the breathe routine returned because the stop flag was set,
+         * use osThreadFlagsGet() to reliably detect the flag here
+         * (avoids races with wait/clear semantics). Clear the flag
+         * so subsequent waits behave as expected. */
+        if ((osThreadFlagsGet() & LED_BREATHE_STOP_FLAG) != 0)
+        {
+          __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0);
+          (void)osThreadFlagsClear(LED_BREATHE_STOP_FLAG);
+          break;
+        }
+      }
+    }
   }
   /* USER CODE END StartTaskLED */
 }
@@ -547,7 +587,7 @@ void StartTaskRFID(void *argument)
 
     if ((flags & RFID_LISTEN_FLAG) != 0)
     {
-      /* Enter a listening loop that continues until a STOP flag is received */
+      AlarmState_t previousAlarmState = g_alarmState;
       g_alarmState = ALARM_STATE_WAITING_FOR_RFID;
       USER_LOG("RFID listening started");
       g_validPINEntered = 0;
@@ -556,15 +596,6 @@ void StartTaskRFID(void *argument)
       /* Listen for cards until touchscreen or another task signals stop */
       while (g_alarmState == ALARM_STATE_WAITING_FOR_RFID)
       {
-        /* Non-blocking check for external stop request */
-        uint32_t stopFlags = osThreadFlagsWait(RFID_STOP_FLAG, osFlagsWaitAny, 0);
-        if ((stopFlags & RFID_STOP_FLAG) != 0)
-        {
-          USER_LOG("RFID listening stopped by request");
-          g_alarmState = ALARM_STATE_WAITING_FOR_MOTION;
-          break;
-        }
-
         if (!is_card_present)
         {
           if (checkCardDetect(&rfID) == STATUS_OK)
@@ -579,10 +610,21 @@ void StartTaskRFID(void *argument)
               {
                 if (g_validPINEntered)
                 {
-                  g_alarmState = ALARM_STATE_ALARM_ON;
-                  Touchscreen_SetAlarmStatus("Alarm on");
+                  g_alarmState = (previousAlarmState == ALARM_STATE_ALARM_OFF ? ALARM_STATE_WAITING_FOR_MOTION : ALARM_STATE_ALARM_OFF);
+
+                  if (g_alarmState == ALARM_STATE_WAITING_FOR_MOTION) {
+                    Touchscreen_SetAlarmStatus("Alarm on");
+                    USER_LOG("Alarm armed! Waiting for motion...");
+                  } else {
+                    Touchscreen_SetAlarmStatus("Alarm off");
+                    USER_LOG("Alarm off");
+                    HAL_TIM_Base_Stop_IT(&htim6);
+                    __HAL_TIM_SET_COUNTER(&htim6, 0);
+
+                    tim6_running = 0;
+                    osThreadFlagsSet(taskLEDHandle, LED_BREATHE_STOP_FLAG);
+                  }
                   Touchscreen_ResetPIN();
-                  USER_LOG("Alarm armed! Waiting for next motion...");
                   /* stop listening once alarm is armed */
                   break;
                 }
@@ -599,10 +641,6 @@ void StartTaskRFID(void *argument)
           if (checkCardRemoval(&rfID) == STATUS_OK)
           {
             is_card_present = 0;
-            if (g_alarmState == ALARM_STATE_ALARM_ON)
-            {
-              g_alarmState = ALARM_STATE_WAITING_FOR_MOTION;
-            }
           }
         }
 

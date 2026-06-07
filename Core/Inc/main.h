@@ -45,19 +45,20 @@ extern "C" {
 /* USER CODE BEGIN EC */
 
 typedef enum {
-  ALARM_STATE_WAITING_FOR_MOTION,
-  ALARM_STATE_MOTION_DETECTED,
+  ALARM_STATE_ALARM_OFF,
   ALARM_STATE_WAITING_FOR_RFID,
-  ALARM_STATE_ALARM_ON
+  ALARM_STATE_WAITING_FOR_MOTION,
+  ALARM_STATE_MOTION_DETECTED
 } AlarmState_t;
 
 extern AlarmState_t g_alarmState;
 extern uint8_t g_validPINEntered;
-/* Thread-flag used to notify taskRFID to start listening for cards */
-#define RFID_LISTEN_FLAG (1U<<0)
-/* Thread-flag used to notify taskRFID to stop listening for cards */
-#define RFID_STOP_FLAG   (1U<<1)
+/* Thread-flags used to notify tasks */
+#define RFID_LISTEN_FLAG        (1U<<0)
+#define LED_BREATHE_START_FLAG  (1U<<1)
+#define LED_BREATHE_STOP_FLAG   (1U<<2)
 
+extern osThreadId_t taskLEDHandle;
 extern osThreadId_t taskRFIDHandle;
 
 /* USER CODE END EC */

@@ -65,6 +65,7 @@
 extern TIM_HandleTypeDef htim6;
 extern UART_HandleTypeDef huart3;
 extern uint8_t tim6_running;
+extern osThreadId_t taskLEDHandle;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -228,7 +229,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
   {
     if (g_alarmState == ALARM_STATE_WAITING_FOR_MOTION)
     {
-      const char *msg = "Motion detected! Waiting for RFID card and PIN...\r\n";
+      const char *msg = "Motion detected!\r\n";
       HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
 
       if (!tim6_running) {
@@ -244,6 +245,11 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim->Instance == TIM6)
     {
+        if (taskLEDHandle != NULL)
+        {
+          osThreadFlagsSet(taskLEDHandle, LED_BREATHE_START_FLAG);
+        }
+
         HAL_TIM_Base_Stop_IT(&htim6);
         __HAL_TIM_SET_COUNTER(&htim6, 0);
         tim6_running = 0;
