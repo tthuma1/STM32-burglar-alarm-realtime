@@ -619,6 +619,7 @@ void StartTaskRFID(void *argument)
                     __HAL_TIM_SET_COUNTER(&htim6, 0);
 
                     tim6_running = 0;
+                    Touchscreen_StopCountdown();
                     osThreadFlagsSet(taskLEDHandle, LED_BREATHE_STOP_FLAG);
                   }
                   Touchscreen_ResetPIN();
