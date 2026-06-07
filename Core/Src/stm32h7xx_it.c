@@ -19,6 +19,8 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "stm32h7xx.h"
+#include "stm32h7xx_hal.h"
 #include "stm32h7xx_it.h"
 #include "FreeRTOS.h"
 #include "task.h"
@@ -231,6 +233,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
     {
       const char *msg = "Motion detected!\r\n";
       HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+      Touchscreen_StartCountdown(10);
 
       if (!tim6_running) {
   	    tim6_running = 1;
@@ -243,7 +246,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-    if (htim->Instance == TIM6)
+    if (htim == &htim6)
     {
         if (taskLEDHandle != NULL)
         {

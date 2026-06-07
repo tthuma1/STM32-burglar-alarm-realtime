@@ -19,6 +19,8 @@ void Touchscreen_SetAlarmStatus(const char *status);
 const char* Touchscreen_GetPINBuffer(void);
 uint8_t Touchscreen_ValidatePIN(void);
 void Touchscreen_ResetPIN(void);
+void Touchscreen_StartCountdown(uint8_t seconds);
+void Touchscreen_StopCountdown(void);
 
 #ifdef __cplusplus
 }

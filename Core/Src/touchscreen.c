@@ -27,6 +27,11 @@
 #define ALARM_STATUS_RECT_Y  (BUTTON_START_Y)
 #define SIDE_BUTTON_Y        (ALARM_STATUS_RECT_Y + ALARM_STATUS_RECT_H + 10)
 
+#define COUNTDOWN_RECT_X     (SIDE_BUTTON_X)
+#define COUNTDOWN_RECT_Y     (SIDE_BUTTON_Y + SIDE_BUTTON_HEIGHT + 8)
+#define COUNTDOWN_RECT_W     (SIDE_BUTTON_WIDTH)
+#define COUNTDOWN_RECT_H     28
+
 #define INPUT_DOT_RADIUS     8
 #define INPUT_DOT_COUNT      4
 
@@ -61,6 +66,10 @@ static uint8_t inputLength = 0;
 static uint8_t sideButtonIndex = 0;
 static bool touchActive = false;
 static bool redrawPending = false;
+static bool countdownActive = false;
+static uint32_t countdownStartTick = 0;
+static uint8_t countdownDurationSeconds = 0;
+static uint8_t lastCountdownRemaining = 255;
 static char alarmStatus[16] = "Alarm off";
 
 static void Touchscreen_DrawTextCentered(uint16_t x, uint16_t y, uint16_t width, const char *text)
@@ -140,6 +149,39 @@ static void Touchscreen_DrawSideButton(void)
   UTIL_LCD_SetFont(&Font20);
   uint16_t textY = SIDE_BUTTON_Y + (SIDE_BUTTON_HEIGHT - Font20.Height) / 2;
   Touchscreen_DrawTextCentered(SIDE_BUTTON_X, textY, SIDE_BUTTON_WIDTH, sideButtonLabels[sideButtonIndex]);
+}
+
+static uint8_t Touchscreen_GetCountdownRemaining(void)
+{
+  if (!countdownActive)
+  {
+    return 0;
+  }
+
+  uint32_t elapsedSeconds = (HAL_GetTick() - countdownStartTick) / 1000u;
+  if (elapsedSeconds >= countdownDurationSeconds)
+  {
+    return 0;
+  }
+
+  return (uint8_t)(countdownDurationSeconds - elapsedSeconds);
+}
+
+static void Touchscreen_DrawCountdown(void)
+{
+  UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_BLACK);
+  UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_WHITE);
+  UTIL_LCD_DrawRect(COUNTDOWN_RECT_X, COUNTDOWN_RECT_Y, COUNTDOWN_RECT_W, COUNTDOWN_RECT_H, UTIL_LCD_COLOR_BLACK);
+  UTIL_LCD_FillRect(COUNTDOWN_RECT_X + 1, COUNTDOWN_RECT_Y + 1, COUNTDOWN_RECT_W - 2, COUNTDOWN_RECT_H - 2, UTIL_LCD_COLOR_WHITE);
+
+  if (countdownActive)
+  {
+    char countdownText[16];
+    uint8_t remaining = Touchscreen_GetCountdownRemaining();
+    snprintf(countdownText, sizeof(countdownText), "%u s", remaining);
+    uint16_t textY = COUNTDOWN_RECT_Y + (COUNTDOWN_RECT_H - Font20.Height) / 2;
+    Touchscreen_DrawTextCentered(COUNTDOWN_RECT_X, textY, COUNTDOWN_RECT_W, countdownText);
+  }
 }
 
 static void Touchscreen_DrawInputField(void)
@@ -264,6 +306,7 @@ void Touchscreen_Init(void)
   Touchscreen_DrawAlarmStatus();
   Touchscreen_DrawKeypad();
   Touchscreen_DrawSideButton();
+  Touchscreen_DrawCountdown();
 }
 
 void Touchscreen_Poll(void)
@@ -289,8 +332,32 @@ void Touchscreen_Poll(void)
   Touchscreen_ProcessKey(key);
 }
 
+static void Touchscreen_UpdateCountdown(void)
+{
+  if (!countdownActive)
+  {
+    return;
+  }
+
+  uint8_t remaining = Touchscreen_GetCountdownRemaining();
+  if (remaining != lastCountdownRemaining)
+  {
+    lastCountdownRemaining = remaining;
+    redrawPending = true;
+  }
+
+  if ((HAL_GetTick() - countdownStartTick) / 1000u > countdownDurationSeconds)
+  {
+    countdownActive = false;
+    lastCountdownRemaining = 255;
+    redrawPending = true;
+  }
+}
+
 void Touchscreen_Render(void)
 {
+  Touchscreen_UpdateCountdown();
+
   if (!redrawPending)
   {
     return;
@@ -301,6 +368,33 @@ void Touchscreen_Render(void)
   Touchscreen_DrawAlarmStatus();
   Touchscreen_DrawKeypad();
   Touchscreen_DrawSideButton();
+  Touchscreen_DrawCountdown();
+}
+
+void Touchscreen_StartCountdown(uint8_t seconds)
+{
+  if (seconds == 0)
+  {
+    return;
+  }
+
+  countdownDurationSeconds = seconds;
+  countdownStartTick = HAL_GetTick();
+  countdownActive = true;
+  lastCountdownRemaining = 255;
+  redrawPending = true;
+}
+
+void Touchscreen_StopCountdown(void)
+{
+  if (!countdownActive)
+  {
+    return;
+  }
+
+  countdownActive = false;
+  lastCountdownRemaining = 255;
+  redrawPending = true;
 }
 
 void Touchscreen_SetAlarmStatus(const char *status)
