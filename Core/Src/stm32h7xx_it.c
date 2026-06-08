@@ -248,6 +248,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
       if (!tim6_running) {
   	    tim6_running = 1;
         __HAL_TIM_SET_COUNTER(&htim6, 0);
+        __HAL_TIM_CLEAR_FLAG(&htim6, TIM_FLAG_UPDATE);
         HAL_TIM_Base_Start_IT(&htim6);
       }
     }
