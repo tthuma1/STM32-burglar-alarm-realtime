@@ -68,6 +68,7 @@ extern TIM_HandleTypeDef htim6;
 extern UART_HandleTypeDef huart3;
 extern uint8_t tim6_running;
 extern osThreadId_t taskLEDHandle;
+extern ETH_HandleTypeDef heth;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -194,6 +195,14 @@ void SysTick_Handler(void)
 /* USER CODE BEGIN 1 */
 
 /**
+  * @brief This function handles Ethernet global interrupt.
+  */
+void ETH_IRQHandler(void)
+{
+  HAL_ETH_IRQHandler(&heth);
+}
+
+/**
   * @brief This function handles EXTI line3 interrupt.
   */
 void EXTI3_IRQHandler(void)
@@ -239,6 +248,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
       if (!tim6_running) {
   	    tim6_running = 1;
         __HAL_TIM_SET_COUNTER(&htim6, 0);
+        __HAL_TIM_CLEAR_FLAG(&htim6, TIM_FLAG_UPDATE);
         HAL_TIM_Base_Start_IT(&htim6);
       }
     }

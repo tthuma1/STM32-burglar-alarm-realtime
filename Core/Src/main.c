@@ -23,7 +23,12 @@
 /* USER CODE BEGIN Includes */
 #include "touchscreen.h"
 #include "mfrc522.h"
+#include "lwip.h"
+#include "lwip/udp.h"
+#include "lwip/ip_addr.h"
+#include "lwip/tcpip.h"
 #include <stdio.h>
+#include <string.h>
 #include <stdbool.h>
 /* USER CODE END Includes */
 
@@ -67,6 +72,13 @@ const osThreadAttr_t taskRFID_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 
+osThreadId_t taskUDPHandle;
+const osThreadAttr_t taskUDP_attributes = {
+  .name = "taskUDP",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
 SPI_HandleTypeDef hspi2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim6;
@@ -86,6 +98,7 @@ void SystemClock_Config(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
+static void MPU_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_SPI2_Init(void);
@@ -95,6 +108,7 @@ bool LED_Breathe(void);
 
 void StartTaskLED(void *argument);
 void StartTaskRFID(void *argument);
+void StartTaskUDP(void *argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -112,6 +126,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+  MPU_Config();
   SCB_EnableICache();
   SCB_EnableDCache();
   /* USER CODE END 1 */
@@ -170,6 +185,7 @@ int main(void)
   /* creation of taskLED */
   taskLEDHandle = osThreadNew(StartTaskLED, NULL, &taskLED_attributes);
   taskRFIDHandle = osThreadNew(StartTaskRFID, NULL, &taskRFID_attributes);
+  taskUDPHandle = osThreadNew(StartTaskUDP, NULL, &taskUDP_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -256,6 +272,54 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/**
+  * @brief Configure MPU non-cacheable regions for Ethernet DMA.
+  *        Must be called before SCB_EnableDCache() to avoid cache coherency
+  *        HardFaults when the Ethernet MAC-DMA writes to RAM_D2.
+  *
+  *        Layout at 0x30040000 (last 32KB of RAM_D2):
+  *          Region 0 (32KB, Normal WT): covers descriptors + RX pool
+  *          Region 1 (256B, Device):    covers descriptor tables only (wins on overlap)
+  */
+static void MPU_Config(void)
+{
+  MPU_Region_InitTypeDef MPU_InitStruct = {0};
+
+  HAL_MPU_Disable();
+
+  /* Region 0 — 32KB at 0x30040000: Normal Write-Through, no write-allocate */
+  MPU_InitStruct.Enable           = MPU_REGION_ENABLE;
+  MPU_InitStruct.Number           = MPU_REGION_NUMBER0;
+  MPU_InitStruct.BaseAddress      = 0x30040000;
+  MPU_InitStruct.Size             = MPU_REGION_SIZE_32KB;
+  MPU_InitStruct.SubRegionDisable = 0x00;
+  MPU_InitStruct.TypeExtField     = MPU_TEX_LEVEL0;
+  MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
+  MPU_InitStruct.DisableExec      = MPU_INSTRUCTION_ACCESS_DISABLE;
+  MPU_InitStruct.IsShareable      = MPU_ACCESS_NOT_SHAREABLE;
+  MPU_InitStruct.IsCacheable      = MPU_ACCESS_CACHEABLE;
+  MPU_InitStruct.IsBufferable     = MPU_ACCESS_NOT_BUFFERABLE;
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+
+  /* Region 1 — 256B at 0x30040000: Device (non-cacheable).
+   * Higher region number wins on overlap, so this overrides region 0
+   * for the descriptor tables area. */
+  MPU_InitStruct.Enable           = MPU_REGION_ENABLE;
+  MPU_InitStruct.Number           = MPU_REGION_NUMBER1;
+  MPU_InitStruct.BaseAddress      = 0x30040000;
+  MPU_InitStruct.Size             = MPU_REGION_SIZE_256B;
+  MPU_InitStruct.SubRegionDisable = 0x00;
+  MPU_InitStruct.TypeExtField     = MPU_TEX_LEVEL0;
+  MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
+  MPU_InitStruct.DisableExec      = MPU_INSTRUCTION_ACCESS_DISABLE;
+  MPU_InitStruct.IsShareable      = MPU_ACCESS_NOT_SHAREABLE;
+  MPU_InitStruct.IsCacheable      = MPU_ACCESS_NOT_CACHEABLE;
+  MPU_InitStruct.IsBufferable     = MPU_ACCESS_BUFFERABLE;
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+
+  HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
+}
+
 /**
   * @brief TIM3 Initialization Function
   * @param None
@@ -649,6 +713,36 @@ void StartTaskRFID(void *argument)
   /* USER CODE END StartTaskLED */
 }
 
+void StartTaskUDP(void *argument)
+{
+  const char *message = "Hello UDP message!\r\n";
+
+  osDelay(1000);
+
+  ip_addr_t PC_IPADDR;
+  IP_ADDR4(&PC_IPADDR, 192, 168, 1, 1);
+
+  LOCK_TCPIP_CORE();
+  struct udp_pcb *my_udp = udp_new();
+  udp_connect(my_udp, &PC_IPADDR, 55151);
+  struct pbuf *udp_buffer = NULL;
+  UNLOCK_TCPIP_CORE();
+
+  for (;;)
+  {
+    osDelay(1000);
+    udp_buffer = pbuf_alloc(PBUF_TRANSPORT, strlen(message), PBUF_RAM);
+    if (udp_buffer != NULL)
+    {
+      LOCK_TCPIP_CORE();
+      memcpy(udp_buffer->payload, message, strlen(message));
+      udp_send(my_udp, udp_buffer);
+      pbuf_free(udp_buffer);
+      UNLOCK_TCPIP_CORE();
+    }
+  }
+}
+
 /* USER CODE END 4 */
 
 /* USER CODE BEGIN Header_StartDefaultTask */
@@ -661,6 +755,7 @@ void StartTaskRFID(void *argument)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+  MX_LWIP_Init();       // start Ethernet + LwIP (must run under RTOS scheduler)
   Touchscreen_Init();   // init once
 
   static uint8_t lastPINLength = 0;
