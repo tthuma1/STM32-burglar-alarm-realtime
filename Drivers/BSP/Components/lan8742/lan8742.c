@@ -168,12 +168,21 @@ int32_t  LAN8742_RegisterBusIO(lan8742_Object_t *pObj, lan8742_IOCtx_t *ioctx)
       
    if(status == LAN8742_STATUS_OK)
    {
-     tickstart =  pObj->IO.GetTick();
-     
-     /* Wait for 2s to perform initialization */
-     while((pObj->IO.GetTick() - tickstart) <= LAN8742_INIT_TO)
+     uint32_t physcsr = 0;
+     tickstart = pObj->IO.GetTick();
+
+     /* Poll for auto-negotiation complete; fall through on timeout */
+     do
      {
+       if(pObj->IO.ReadReg(pObj->DevAddr, LAN8742_PHYSCSR, &physcsr) < 0)
+       {
+         status = LAN8742_STATUS_READ_ERROR;
+         break;
+       }
      }
+     while(((physcsr & LAN8742_PHYSCSR_AUTONEGO_DONE) == 0) &&
+           ((pObj->IO.GetTick() - tickstart) <= LAN8742_INIT_TO));
+
      pObj->Is_Initialized = 1;
    }
    
