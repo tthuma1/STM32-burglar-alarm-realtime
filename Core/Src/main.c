@@ -717,7 +717,7 @@ void StartTaskUDP(void *argument)
 {
   const char *message = "Hello UDP message!\r\n";
 
-  osDelay(500);
+  osDelay(1000);
 
   ip_addr_t PC_IPADDR;
   IP_ADDR4(&PC_IPADDR, 192, 168, 1, 1);
