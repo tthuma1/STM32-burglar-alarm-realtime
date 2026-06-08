@@ -415,6 +415,12 @@ static err_t low_level_output(struct netif *netif, struct pbuf *p)
     Txbuffer[i].buffer = q->payload;
     Txbuffer[i].len = q->len;
 
+    /* Flush D-cache so Ethernet DMA reads current data from physical SRAM,
+     * not stale cached data. The LwIP heap (0x30020000) is in Write-Back
+     * cached SRAM2 which the MPU does not cover, so an explicit clean is
+     * required before every DMA transmit. */
+    SCB_CleanDCache_by_Addr((uint32_t *)q->payload, q->len);
+
     if(i>0)
     {
       Txbuffer[i-1].next = &Txbuffer[i];
