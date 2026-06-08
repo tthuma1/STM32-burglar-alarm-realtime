@@ -23,6 +23,7 @@
 /* USER CODE BEGIN Includes */
 #include "touchscreen.h"
 #include "mfrc522.h"
+#include "lwip.h"
 #include <stdio.h>
 #include <stdbool.h>
 /* USER CODE END Includes */
@@ -86,6 +87,7 @@ void SystemClock_Config(void);
 void StartDefaultTask(void *argument);
 
 /* USER CODE BEGIN PFP */
+static void MPU_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART3_UART_Init(void);
 static void MX_SPI2_Init(void);
@@ -112,6 +114,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
+  MPU_Config();
   SCB_EnableICache();
   SCB_EnableDCache();
   /* USER CODE END 1 */
@@ -256,6 +259,54 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/**
+  * @brief Configure MPU non-cacheable regions for Ethernet DMA.
+  *        Must be called before SCB_EnableDCache() to avoid cache coherency
+  *        HardFaults when the Ethernet MAC-DMA writes to RAM_D2.
+  *
+  *        Layout at 0x30040000 (last 32KB of RAM_D2):
+  *          Region 0 (32KB, Normal WT): covers descriptors + RX pool
+  *          Region 1 (256B, Device):    covers descriptor tables only (wins on overlap)
+  */
+static void MPU_Config(void)
+{
+  MPU_Region_InitTypeDef MPU_InitStruct = {0};
+
+  HAL_MPU_Disable();
+
+  /* Region 0 — 32KB at 0x30040000: Normal Write-Through, no write-allocate */
+  MPU_InitStruct.Enable           = MPU_REGION_ENABLE;
+  MPU_InitStruct.Number           = MPU_REGION_NUMBER0;
+  MPU_InitStruct.BaseAddress      = 0x30040000;
+  MPU_InitStruct.Size             = MPU_REGION_SIZE_32KB;
+  MPU_InitStruct.SubRegionDisable = 0x00;
+  MPU_InitStruct.TypeExtField     = MPU_TEX_LEVEL0;
+  MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
+  MPU_InitStruct.DisableExec      = MPU_INSTRUCTION_ACCESS_DISABLE;
+  MPU_InitStruct.IsShareable      = MPU_ACCESS_NOT_SHAREABLE;
+  MPU_InitStruct.IsCacheable      = MPU_ACCESS_CACHEABLE;
+  MPU_InitStruct.IsBufferable     = MPU_ACCESS_NOT_BUFFERABLE;
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+
+  /* Region 1 — 256B at 0x30040000: Device (non-cacheable).
+   * Higher region number wins on overlap, so this overrides region 0
+   * for the descriptor tables area. */
+  MPU_InitStruct.Enable           = MPU_REGION_ENABLE;
+  MPU_InitStruct.Number           = MPU_REGION_NUMBER1;
+  MPU_InitStruct.BaseAddress      = 0x30040000;
+  MPU_InitStruct.Size             = MPU_REGION_SIZE_256B;
+  MPU_InitStruct.SubRegionDisable = 0x00;
+  MPU_InitStruct.TypeExtField     = MPU_TEX_LEVEL0;
+  MPU_InitStruct.AccessPermission = MPU_REGION_FULL_ACCESS;
+  MPU_InitStruct.DisableExec      = MPU_INSTRUCTION_ACCESS_DISABLE;
+  MPU_InitStruct.IsShareable      = MPU_ACCESS_NOT_SHAREABLE;
+  MPU_InitStruct.IsCacheable      = MPU_ACCESS_NOT_CACHEABLE;
+  MPU_InitStruct.IsBufferable     = MPU_ACCESS_BUFFERABLE;
+  HAL_MPU_ConfigRegion(&MPU_InitStruct);
+
+  HAL_MPU_Enable(MPU_PRIVILEGED_DEFAULT);
+}
+
 /**
   * @brief TIM3 Initialization Function
   * @param None
@@ -661,6 +712,7 @@ void StartTaskRFID(void *argument)
 void StartDefaultTask(void *argument)
 {
   /* USER CODE BEGIN 5 */
+  MX_LWIP_Init();       // start Ethernet + LwIP (must run under RTOS scheduler)
   Touchscreen_Init();   // init once
 
   static uint8_t lastPINLength = 0;

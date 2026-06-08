@@ -68,6 +68,7 @@ extern TIM_HandleTypeDef htim6;
 extern UART_HandleTypeDef huart3;
 extern uint8_t tim6_running;
 extern osThreadId_t taskLEDHandle;
+extern ETH_HandleTypeDef heth;
 /* USER CODE END EV */
 
 /******************************************************************************/
@@ -192,6 +193,14 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /* USER CODE BEGIN 1 */
+
+/**
+  * @brief This function handles Ethernet global interrupt.
+  */
+void ETH_IRQHandler(void)
+{
+  HAL_ETH_IRQHandler(&heth);
+}
 
 /**
   * @brief This function handles EXTI line3 interrupt.

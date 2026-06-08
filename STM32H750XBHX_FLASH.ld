@@ -175,6 +175,20 @@ SECTIONS
   }
 
   .ARM.attributes 0 : { *(.ARM.attributes) }
+
+  /* Ethernet DMA descriptors and RX buffer pool — last 32KB of RAM_D2.
+   * Both regions must be in RAM_D2 (accessible by Ethernet MAC-DMA).
+   * MPU_Config() marks 0x30040000-256B as Device and 0x30040000-32KB as WT. */
+  .RxDecripSection (NOLOAD) :
+  {
+    . = ORIGIN(RAM_D2) + LENGTH(RAM_D2) - 0x8000;  /* = 0x30040000 */
+    *(.RxDecripSection)
+    . = ALIGN(32);
+    *(.TxDecripSection)
+    . = ALIGN(32);
+    *(.Rx_PoolSection)
+    . = ALIGN(32);
+  } >RAM_D2
 }
 
 
