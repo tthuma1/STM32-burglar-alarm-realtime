@@ -24,7 +24,11 @@
 #include "touchscreen.h"
 #include "mfrc522.h"
 #include "lwip.h"
+#include "lwip/udp.h"
+#include "lwip/ip_addr.h"
+#include "lwip/tcpip.h"
 #include <stdio.h>
+#include <string.h>
 #include <stdbool.h>
 /* USER CODE END Includes */
 
@@ -68,6 +72,13 @@ const osThreadAttr_t taskRFID_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 
+osThreadId_t taskUDPHandle;
+const osThreadAttr_t taskUDP_attributes = {
+  .name = "taskUDP",
+  .stack_size = 512 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
+
 SPI_HandleTypeDef hspi2;
 TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim6;
@@ -97,6 +108,7 @@ bool LED_Breathe(void);
 
 void StartTaskLED(void *argument);
 void StartTaskRFID(void *argument);
+void StartTaskUDP(void *argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -173,6 +185,7 @@ int main(void)
   /* creation of taskLED */
   taskLEDHandle = osThreadNew(StartTaskLED, NULL, &taskLED_attributes);
   taskRFIDHandle = osThreadNew(StartTaskRFID, NULL, &taskRFID_attributes);
+  taskUDPHandle = osThreadNew(StartTaskUDP, NULL, &taskUDP_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -698,6 +711,36 @@ void StartTaskRFID(void *argument)
     }
   }
   /* USER CODE END StartTaskLED */
+}
+
+void StartTaskUDP(void *argument)
+{
+  const char *message = "Hello UDP message!\r\n";
+
+  osDelay(1000);
+
+  ip_addr_t PC_IPADDR;
+  IP_ADDR4(&PC_IPADDR, 192, 168, 1, 1);
+
+  LOCK_TCPIP_CORE();
+  struct udp_pcb *my_udp = udp_new();
+  udp_connect(my_udp, &PC_IPADDR, 55151);
+  struct pbuf *udp_buffer = NULL;
+  UNLOCK_TCPIP_CORE();
+
+  for (;;)
+  {
+    osDelay(1000);
+    udp_buffer = pbuf_alloc(PBUF_TRANSPORT, strlen(message), PBUF_RAM);
+    if (udp_buffer != NULL)
+    {
+      LOCK_TCPIP_CORE();
+      memcpy(udp_buffer->payload, message, strlen(message));
+      udp_send(my_udp, udp_buffer);
+      pbuf_free(udp_buffer);
+      UNLOCK_TCPIP_CORE();
+    }
+  }
 }
 
 /* USER CODE END 4 */
