@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Burglar Alarm Events</title>
+  <style>
+    body {
+      font-family: monospace;
+      max-width: 700px;
+      margin: 2rem auto;
+      padding: 0 1rem;
+      background: #f9f9f9;
+      color: #222;
+    }
+    h1 { font-size: 1.3rem; margin-bottom: 1.2rem; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0.6rem;
+      border-bottom: 1px solid #e0e0e0;
+      background: #fff;
+    }
+    li:hover { background: #f4f4f4; }
+    .alarm_triggered { color: #c00; font-weight: bold; }
+    .motion_detected { color: #c60; }
+    .alarm_on        { color: #060; }
+    .alarm_off       { color: #888; }
+    .ts { color: #aaa; font-size: 0.85em; }
+    .empty { color: #aaa; padding: 1rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Burglar Alarm — Event Log</h1>
+  {% if events %}
+  <ul>
+    {% for e in events %}
+    <li>
+      <span class="{{ e.event_type }}">{{ e.event_type }}</span>
+      <span class="ts">{{ e.received_at }} UTC</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty">No events recorded yet.</p>
+  {% endif %}
+</body>
+</html>

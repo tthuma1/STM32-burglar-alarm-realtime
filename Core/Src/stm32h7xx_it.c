@@ -243,6 +243,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
       g_alarmState = ALARM_STATE_MOTION_DETECTED;
       const char *msg = "Motion detected!\r\n";
       HAL_UART_Transmit(&huart3, (uint8_t *)msg, strlen(msg), HAL_MAX_DELAY);
+      // TODO UDP: send "motion detected" to webserver
       Touchscreen_StartCountdown(10);
 
       if (!tim6_running) {
@@ -259,6 +260,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
     if (htim == &htim6)
     {
+        // TODO UDP: send "alarm triggered" to webserver
         if (taskLEDHandle != NULL)
         {
           osThreadFlagsSet(taskLEDHandle, LED_BREATHE_START_FLAG);

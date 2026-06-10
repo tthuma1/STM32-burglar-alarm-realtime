@@ -24,7 +24,7 @@
 #include "touchscreen.h"
 #include "mfrc522.h"
 #include "lwip.h"
-#include "lwip/udp.h"
+#include "lwip/tcp.h"
 #include "lwip/ip_addr.h"
 #include "lwip/tcpip.h"
 #include <stdio.h>
@@ -674,9 +674,11 @@ void StartTaskRFID(void *argument)
                   is_waiting_for_rfid = false;
 
                   if (g_alarmState == ALARM_STATE_WAITING_FOR_MOTION) {
+                    // TODO UDP: send "alarm on" to webserver
                     Touchscreen_SetAlarmStatus("Alarm on");
                     USER_LOG("Alarm armed! Waiting for motion...");
                   } else {
+                    // TODO UDP: send "alarm off" to webserver
                     Touchscreen_SetAlarmStatus("Alarm off");
                     USER_LOG("Alarm off");
                     HAL_TIM_Base_Stop_IT(&htim6);
@@ -713,31 +715,109 @@ void StartTaskRFID(void *argument)
   /* USER CODE END StartTaskLED */
 }
 
+#define TCP_HTTP_DONE_FLAG  (1U << 0)
+#define TCP_HTTP_ERROR_FLAG (1U << 1)
+
+static struct tcp_pcb *g_http_pcb = NULL;
+static char g_http_request[256];
+
+static void http_tcp_close(struct tcp_pcb *pcb)
+{
+  tcp_arg(pcb, NULL);
+  tcp_sent(pcb, NULL);
+  tcp_recv(pcb, NULL);
+  tcp_err(pcb, NULL);
+  tcp_close(pcb);
+  g_http_pcb = NULL;
+}
+
+static err_t http_tcp_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+{
+  if (p != NULL) {
+    tcp_recved(tpcb, p->tot_len);
+    pbuf_free(p);
+    return ERR_OK;
+  }
+  /* p == NULL: remote side closed the connection */
+  http_tcp_close(tpcb);
+  osThreadFlagsSet(taskUDPHandle, TCP_HTTP_DONE_FLAG);
+  return ERR_OK;
+}
+
+static err_t http_tcp_connected(void *arg, struct tcp_pcb *tpcb, err_t err)
+{
+  if (err != ERR_OK) {
+    g_http_pcb = NULL;
+    osThreadFlagsSet(taskUDPHandle, TCP_HTTP_ERROR_FLAG);
+    return err;
+  }
+
+  tcp_recv(tpcb, http_tcp_recv);
+
+  u16_t len = (u16_t)strlen(g_http_request);
+  if (tcp_write(tpcb, g_http_request, len, TCP_WRITE_FLAG_COPY) != ERR_OK) {
+    http_tcp_close(tpcb);
+    osThreadFlagsSet(taskUDPHandle, TCP_HTTP_ERROR_FLAG);
+    return ERR_OK;
+  }
+  tcp_output(tpcb);
+  return ERR_OK;
+}
+
+static void http_tcp_err(void *arg, err_t err)
+{
+  /* PCB is already freed by lwIP when this fires — do not call tcp_* on it */
+  g_http_pcb = NULL;
+  osThreadFlagsSet(taskUDPHandle, TCP_HTTP_ERROR_FLAG);
+}
+
 void StartTaskUDP(void *argument)
 {
-  const char *message = "Hello UDP message!\r\n";
+  const char *body = "{\"status\":\"placeholder\"}";
+  snprintf(g_http_request, sizeof(g_http_request),
+    "POST /alarm HTTP/1.1\r\n"
+    "Host: 192.168.1.1\r\n"
+    "Content-Type: application/json\r\n"
+    "Content-Length: %u\r\n"
+    "Connection: close\r\n"
+    "\r\n%s",
+    (unsigned)strlen(body), body);
 
-  osDelay(1000);
+  osDelay(2000);
 
-  ip_addr_t PC_IPADDR;
-  IP_ADDR4(&PC_IPADDR, 192, 168, 1, 1);
-
-  LOCK_TCPIP_CORE();
-  struct udp_pcb *my_udp = udp_new();
-  udp_connect(my_udp, &PC_IPADDR, 55151);
-  struct pbuf *udp_buffer = NULL;
-  UNLOCK_TCPIP_CORE();
+  ip_addr_t server_ip;
+  IP_ADDR4(&server_ip, 192, 168, 1, 1);
 
   for (;;)
   {
-    osDelay(1000);
-    udp_buffer = pbuf_alloc(PBUF_TRANSPORT, strlen(message), PBUF_RAM);
-    if (udp_buffer != NULL)
-    {
+    osDelay(2000);
+
+    osThreadFlagsClear(TCP_HTTP_DONE_FLAG | TCP_HTTP_ERROR_FLAG);
+
+    LOCK_TCPIP_CORE();
+    g_http_pcb = tcp_new();
+    if (g_http_pcb != NULL) {
+      tcp_err(g_http_pcb, http_tcp_err);
+      if (tcp_connect(g_http_pcb, &server_ip, 80, http_tcp_connected) != ERR_OK) {
+        tcp_abort(g_http_pcb);
+        g_http_pcb = NULL;
+      }
+    }
+    UNLOCK_TCPIP_CORE();
+
+    if (g_http_pcb == NULL) {
+      continue;
+    }
+
+    uint32_t flags = osThreadFlagsWait(TCP_HTTP_DONE_FLAG | TCP_HTTP_ERROR_FLAG,
+                                       osFlagsWaitAny, 10000);
+    if ((int32_t)flags < 0) {
+      /* timeout or other error — abort the connection */
       LOCK_TCPIP_CORE();
-      memcpy(udp_buffer->payload, message, strlen(message));
-      udp_send(my_udp, udp_buffer);
-      pbuf_free(udp_buffer);
+      if (g_http_pcb != NULL) {
+        tcp_abort(g_http_pcb);
+        g_http_pcb = NULL;
+      }
       UNLOCK_TCPIP_CORE();
     }
   }
