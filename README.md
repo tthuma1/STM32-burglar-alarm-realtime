@@ -17,6 +17,30 @@ Realtime burglar alarm firmware for the [STM32H750B-DK](https://www.st.com/en/mi
 | Debug UART | USART3 | TX → PB10, RX → PB11 (VCP, 115200 baud) |
 | Touchscreen | I2C4 + LTDC | On-board (FT5336 controller) |
 
+All components use 3.3V power.
+
+#### MFRC522 RFID
+
+| Signal | STM32 Pin | Arduino Header |
+|---|---|---|
+| SDA (SS) | PB4 | D10 |
+| SCK | PD3 | D13 |
+| MOSI | PB15 | D11 |
+| MISO | PI2 | D12 |
+| RST | PI8 | D7 |
+
+#### LED
+
+| Signal | STM32 Pin | Arduino Header |
+|---|---|---|
+| LED+ | PA6 | D3 |
+
+#### PIR Sensor
+
+| Signal | STM32 Pin | Arduino Header |
+|---|---|---|
+| MOTION | PG3 | D2 |
+
 ## System Design
 
 ### Alarm State Machine
