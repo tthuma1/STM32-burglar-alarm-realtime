@@ -2,78 +2,55 @@
 
 ## Overview
 
-This project implements a realtime burglar alarm system on the STM32H750B-DK development board.
-It integrates:
-- MFRC522 RFID reader for authorized tag detection
-- Motion sensor for intrusion detection
-- Built-in capacitive touchscreen for user interaction and status display
+Realtime burglar alarm firmware for the STM32H750B-DK. The alarm is armed/disarmed via PIN entry and an authorized RFID tag scan. A PIR sensor on PG3 triggers a TIM6 countdown; if not cancelled in time, an alarm event fires. All state changes are reported over Ethernet to a companion Flask webserver.
 
-The firmware is built for the STM32H750B-DK board, which uses an STM32H750xB device based on a high-performance Arm Cortex-M7 core running up to 480 MHz. The MCU includes a double-precision/single-precision FPU, DSP instruction set, MPU, and high-speed memories with 128 Kbytes of flash and up to 1 Mbyte of RAM (including TCM RAM and user SRAM).
+Target MCU: **STM32H750xB** (Cortex-M7, 480 MHz, 128 KB flash, up to 1 MB RAM).
 
-STM32H750xB devices also provide advanced peripherals for this project, including:
-- LTDC graphics and DMA2D for the built-in touchscreen
-- Flexible external memory support for SDRAM and Quad-SPI
-- Multiple SPI/I2C/UART interfaces for RFID and sensor connections
-- Integrated ADCs, DACs, RNG, and crypto acceleration
+## FreeRTOS Tasks
 
-## Hardware
+| Task | Purpose |
+|---|---|
+| `defaultTask` | LwIP init, touchscreen poll/render |
+| `taskLED` | PWM breathing LED when alarm is armed |
+| `taskRFID` | Card detection and PIN validation |
+| `taskHTTP` | Dequeues `HttpEvent_t` and sends HTTP POST |
 
-Target board:
-- STM32H750B-DK
+Tasks communicate via thread flags and `g_http_event_queue`.
 
-Connected peripherals:
-- MFRC522 RFID module
-- Motion sensor (PIR / presence detector)
-- On-board touchscreen display
+## HTTP Event Reporting
 
-Project structure indicates support for:
-- STM32H7 HAL drivers
-- FreeRTOS
-- SDRAM, touchscreen, LCD and external SPI/NFC devices
+`taskHTTP` sends `POST /event HTTP/1.1` to `192.168.1.1:5000` (device IP: `192.168.1.10`) with body `{"type": "<event_type>"}`.
 
-## Key Features
+| `event_type` | Trigger |
+|---|---|
+| `alarm_on` | PIN + RFID validated, alarm armed |
+| `alarm_off` | PIN + RFID validated, alarm disarmed |
+| `motion_detected` | EXTI interrupt on PG3 |
+| `alarm_triggered` | TIM6 countdown expired |
 
-- RFID-based access control using MFRC522
-- Motion-triggered alarm detection
-- Touchscreen user interface for system status and control
-- Real-time behavior using FreeRTOS and STM32H7 peripherals
+The companion webserver lives in `webserver/` — see `webserver/CLAUDE.md`.
 
 ## Repository Layout
 
-## Repository Layout
+- `Core/Inc`, `Core/Src` — application code and peripheral drivers
+  - `main.c` / `main.h` — entry point, peripheral init, task definitions, HTTP client
+  - `touchscreen.c` / `touchscreen.h` — PIN keypad, status overlays, countdown UI
+  - `stm32h7xx_it.c` — ISRs: EXTI motion callback, TIM6 alarm trigger
+  - `stm32h7xx_hal_msp.c` — peripheral clock and GPIO setup
+- `Core/Components` — MFRC522, FT5336 touch, SDRAM, Quad-SPI flash drivers
+- `Drivers/STM32H7xx_HAL_Driver` — STM32H7 HAL
+- `Middlewares/Third_Party/FreeRTOS` — FreeRTOS kernel
+- `webserver/` — Flask event log server
+- `Startup`, `Fonts` — MCU startup/linker scripts, display font assets
 
-- `Core/Inc` and `Core/Src` - main application code, HAL wrappers, board support and peripheral drivers
-  - `main.c` / `main.h` – Core application entry point, initialization, and primary task orchestrator.
-  - `touchscreen.c` / `touchscreen.h` – UI rendering engine (keypads, fields, status overlays, and countdowns).
-  - `stm32h7xx_it.c` – Interrupt Service Routines (including EXTI motion sensor callbacks).
-  - `stm32h7xx_hal_msp.c` – MCU Support Package peripheral clock and GPIO pin setups (e.g., UART3).
-- `Core/Components` - driver implementations for MFRC522, touch controller, SDRAM, and flash devices
-  - `mfrc522.c` – MFRC522 RFID reader driver and card-tracking logic.
-  - `stm32_lcd.c` – Platform-agnostic 2D graphics primitive drawing utilities.
-  - `stm32h750b_discovery_lcd.c` – LTDC frame buffer and screen backlight PWM control.
-  - `stm32h750b_discovery_ts.c` – FT5336 capacitive touch controller interface.
-  - `stm32h750b_discovery_bus.c` – Low-level I2C4 bus communication layers.
-  - `stm32h750b_discovery_sdram.c` – FMC external SDRAM initialization and MDMA framing code.
-- `Drivers/STM32H7xx_HAL_Driver` - MCU HAL sources and headers
-- `Middlewares/Third_Party/FreeRTOS` - realtime operating system support
-- `Startup` - MCU startup code and linker configuration
-- `Fonts` - display font assets for touchscreen UI
 ## Notes
 
-- The project is configured for the STM32H750XBHX device variant.
-- Build and flash tooling are managed through the generated STM32CubeIDE/Makefile environment.
-- The touchscreen and LCD drivers are implemented in `stm32_lcd.c` and `touchscreen.c`.
-- RFID logic is handled in `mfrc522.c`.
-
-## Usage
-
-1. Connect the STM32H750B-DK board to the host PC via USB.
-2. Ensure the MFRC522 reader and motion sensor are wired to the appropriate board interfaces.
-3. Build and flash the firmware using the provided project files.
-4. Use the touchscreen UI to monitor alarm state and manage access.
+- The MPU marks Ethernet DMA buffers at `0x30040000` as non-cacheable before enabling D-Cache to prevent HardFaults.
+- Debug output: USART3 at 115200 baud (VCP pins PB10/PB11).
+- Build and flash via STM32CubeIDE or the generated Makefile.
 
 ## References
 
-- ST STM32H750 value line product page: https://www.st.com/en/microcontrollers-microprocessors/stm32h750xb.html
-- MFRC522 RFID reader documentation
+- [ST STM32H750 product page](https://www.st.com/en/microcontrollers-microprocessors/stm32h750xb.html)
+- MFRC522 RFID reader datasheet
 - STM32H7 HAL and FreeRTOS documentation
