@@ -43,6 +43,10 @@ The companion webserver lives in `webserver/` — see `webserver/CLAUDE.md`.
 - `webserver/` — Flask event log server
 - `Startup`, `Fonts` — MCU startup/linker scripts, display font assets
 
+## RTC
+
+The STM32 RTC is clocked from the LSE (32.768 kHz crystal, `RCC_OSCILLATORTYPE_LSE`). It is initialised in `MX_RTC_Init()` with 24-hour format, `AsynchPrediv = 127`, `SynchPrediv = 255`. The touchscreen renders a live date/time widget (`Touchscreen_DrawClock` / `Touchscreen_UpdateClock` in `touchscreen.c`) that redraws once per second by comparing `sTime.Seconds` against `lastClockSecond`. `HAL_RTC_GetDate()` must always be called after `HAL_RTC_GetTime()` to unlock the shadow registers.
+
 ## Notes
 
 - The MPU marks Ethernet DMA buffers at `0x30040000` as non-cacheable before enabling D-Cache to prevent HardFaults.

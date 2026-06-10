@@ -1,5 +1,5 @@
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime
 from flask import Flask, request, g, render_template, abort
 
 DATABASE = 'events.db'
@@ -44,7 +44,7 @@ def receive_event():
     db = get_db()
     db.execute(
         'INSERT INTO events (event_type, received_at) VALUES (?, ?)',
-        (event_type, datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'))
+        (event_type, datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S'))
     )
     db.commit()
     return 'OK', 200

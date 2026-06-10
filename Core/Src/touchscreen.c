@@ -32,8 +32,8 @@
 #define COUNTDOWN_RECT_W     (SIDE_BUTTON_WIDTH)
 #define COUNTDOWN_RECT_H     28
 
-#define CLOCK_RECT_X         (SIDE_BUTTON_X)
-#define CLOCK_RECT_Y         (COUNTDOWN_RECT_Y + COUNTDOWN_RECT_H + 8)
+#define CLOCK_RECT_X         (SIDE_BUTTON_X + 65)
+#define CLOCK_RECT_Y         (COUNTDOWN_RECT_Y + COUNTDOWN_RECT_H + 35)
 #define CLOCK_RECT_W         (SIDE_BUTTON_WIDTH)
 #define CLOCK_RECT_H         48
 
@@ -78,7 +78,7 @@ static uint8_t lastCountdownRemaining = 255;
 static uint8_t lastClockSecond = 255;
 static char alarmStatus[16] = "Alarm off";
 
-extern hrtc;
+extern RTC_HandleTypeDef hrtc;
 
 static void Touchscreen_DrawTextCentered(uint16_t x, uint16_t y, uint16_t width, const char *text)
 {
@@ -195,7 +195,7 @@ static void Touchscreen_DrawClock(void)
 {
   RTC_TimeTypeDef sTime;
   RTC_DateTypeDef sDate;
-  char dateStr[12];
+  char dateStr[13];
   char timeStr[12];
 
   HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);

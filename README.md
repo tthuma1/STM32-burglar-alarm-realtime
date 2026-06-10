@@ -57,6 +57,10 @@ When the alarm is armed and the PIR fires, a 10-second countdown starts on the t
 
 Thread flags and `g_http_event_queue` (capacity 4) are used for inter-task signalling.
 
+### RTC
+
+The on-chip RTC is driven by the LSE (32.768 kHz crystal). The touchscreen renders a live date/time widget in the sidebar.
+
 ### HTTP Event Reporting
 
 `taskHTTP` opens a raw TCP connection to `192.168.1.1:5000` and sends an HTTP/1.1 POST for each state change. The device has a static IP of `192.168.1.10`.
