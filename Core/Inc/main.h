@@ -60,6 +60,15 @@ extern uint8_t g_validPINEntered;
 extern osThreadId_t taskLEDHandle;
 extern osThreadId_t taskRFIDHandle;
 
+typedef enum {
+  HTTP_EVENT_ALARM_ON = 0,
+  HTTP_EVENT_ALARM_OFF,
+  HTTP_EVENT_MOTION_DETECTED,
+  HTTP_EVENT_ALARM_TRIGGERED,
+} HttpEvent_t;
+
+extern osMessageQueueId_t g_http_event_queue;
+
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/

@@ -90,6 +90,7 @@ uint8_t msg[256];
 uint8_t tim6_running = 0;
 
 AlarmState_t g_alarmState = ALARM_STATE_ALARM_OFF;
+osMessageQueueId_t g_http_event_queue;
 uint8_t g_validPINEntered = 0;
 /* USER CODE END PV */
 
@@ -173,7 +174,7 @@ int main(void)
   /* USER CODE END RTOS_TIMERS */
 
   /* USER CODE BEGIN RTOS_QUEUES */
-  /* add queues, ... */
+  g_http_event_queue = osMessageQueueNew(4, sizeof(HttpEvent_t), NULL);
   /* USER CODE END RTOS_QUEUES */
 
   /* Create the thread(s) */
@@ -674,11 +675,13 @@ void StartTaskRFID(void *argument)
                   is_waiting_for_rfid = false;
 
                   if (g_alarmState == ALARM_STATE_WAITING_FOR_MOTION) {
-                    // TODO UDP: send "alarm on" to webserver
+                    HttpEvent_t ev = HTTP_EVENT_ALARM_ON;
+                    osMessageQueuePut(g_http_event_queue, &ev, 0, 0);
                     Touchscreen_SetAlarmStatus("Alarm on");
                     USER_LOG("Alarm armed! Waiting for motion...");
                   } else {
-                    // TODO UDP: send "alarm off" to webserver
+                    HttpEvent_t ev = HTTP_EVENT_ALARM_OFF;
+                    osMessageQueuePut(g_http_event_queue, &ev, 0, 0);
                     Touchscreen_SetAlarmStatus("Alarm off");
                     USER_LOG("Alarm off");
                     HAL_TIM_Base_Stop_IT(&htim6);
@@ -773,24 +776,31 @@ static void http_tcp_err(void *arg, err_t err)
 
 void StartTaskUDP(void *argument)
 {
-  const char *body = "{\"status\":\"placeholder\"}";
-  snprintf(g_http_request, sizeof(g_http_request),
-    "POST /alarm HTTP/1.1\r\n"
-    "Host: 192.168.1.1\r\n"
-    "Content-Type: application/json\r\n"
-    "Content-Length: %u\r\n"
-    "Connection: close\r\n"
-    "\r\n%s",
-    (unsigned)strlen(body), body);
+  static const char *event_names[] = {
+    "alarm_on", "alarm_off", "motion_detected", "alarm_triggered"
+  };
 
-  osDelay(2000);
+  osDelay(2000);  /* wait for LwIP to come up */
 
   ip_addr_t server_ip;
   IP_ADDR4(&server_ip, 192, 168, 1, 1);
 
   for (;;)
   {
-    osDelay(2000);
+    HttpEvent_t evt;
+    osMessageQueueGet(g_http_event_queue, &evt, NULL, osWaitForever);
+
+    char body[40];
+    snprintf(body, sizeof(body), "{\"type\":\"%s\"}", event_names[evt]);
+
+    snprintf(g_http_request, sizeof(g_http_request),
+      "POST /event HTTP/1.1\r\n"
+      "Host: 192.168.1.1\r\n"
+      "Content-Type: application/json\r\n"
+      "Content-Length: %u\r\n"
+      "Connection: close\r\n"
+      "\r\n%s",
+      (unsigned)strlen(body), body);
 
     osThreadFlagsClear(TCP_HTTP_DONE_FLAG | TCP_HTTP_ERROR_FLAG);
 
@@ -798,7 +808,7 @@ void StartTaskUDP(void *argument)
     g_http_pcb = tcp_new();
     if (g_http_pcb != NULL) {
       tcp_err(g_http_pcb, http_tcp_err);
-      if (tcp_connect(g_http_pcb, &server_ip, 80, http_tcp_connected) != ERR_OK) {
+      if (tcp_connect(g_http_pcb, &server_ip, 5000, http_tcp_connected) != ERR_OK) {
         tcp_abort(g_http_pcb);
         g_http_pcb = NULL;
       }
@@ -812,7 +822,7 @@ void StartTaskUDP(void *argument)
     uint32_t flags = osThreadFlagsWait(TCP_HTTP_DONE_FLAG | TCP_HTTP_ERROR_FLAG,
                                        osFlagsWaitAny, 10000);
     if ((int32_t)flags < 0) {
-      /* timeout or other error — abort the connection */
+      /* timeout — abort the connection */
       LOCK_TCPIP_CORE();
       if (g_http_pcb != NULL) {
         tcp_abort(g_http_pcb);
