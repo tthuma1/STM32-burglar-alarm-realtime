@@ -72,9 +72,9 @@ const osThreadAttr_t taskRFID_attributes = {
   .priority = (osPriority_t) osPriorityNormal,
 };
 
-osThreadId_t taskUDPHandle;
-const osThreadAttr_t taskUDP_attributes = {
-  .name = "taskUDP",
+osThreadId_t taskHTTPHandle;
+const osThreadAttr_t taskHTTP_attributes = {
+  .name = "taskHTTP",
   .stack_size = 512 * 4,
   .priority = (osPriority_t) osPriorityNormal,
 };
@@ -109,7 +109,7 @@ bool LED_Breathe(void);
 
 void StartTaskLED(void *argument);
 void StartTaskRFID(void *argument);
-void StartTaskUDP(void *argument);
+void StartTaskHTTP(void *argument);
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -186,7 +186,7 @@ int main(void)
   /* creation of taskLED */
   taskLEDHandle = osThreadNew(StartTaskLED, NULL, &taskLED_attributes);
   taskRFIDHandle = osThreadNew(StartTaskRFID, NULL, &taskRFID_attributes);
-  taskUDPHandle = osThreadNew(StartTaskUDP, NULL, &taskUDP_attributes);
+  taskHTTPHandle = osThreadNew(StartTaskHTTP, NULL, &taskHTTP_attributes);
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */
@@ -743,7 +743,7 @@ static err_t http_tcp_recv(void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_
   }
   /* p == NULL: remote side closed the connection */
   http_tcp_close(tpcb);
-  osThreadFlagsSet(taskUDPHandle, TCP_HTTP_DONE_FLAG);
+  osThreadFlagsSet(taskHTTPHandle, TCP_HTTP_DONE_FLAG);
   return ERR_OK;
 }
 
@@ -751,7 +751,7 @@ static err_t http_tcp_connected(void *arg, struct tcp_pcb *tpcb, err_t err)
 {
   if (err != ERR_OK) {
     g_http_pcb = NULL;
-    osThreadFlagsSet(taskUDPHandle, TCP_HTTP_ERROR_FLAG);
+    osThreadFlagsSet(taskHTTPHandle, TCP_HTTP_ERROR_FLAG);
     return err;
   }
 
@@ -760,7 +760,7 @@ static err_t http_tcp_connected(void *arg, struct tcp_pcb *tpcb, err_t err)
   u16_t len = (u16_t)strlen(g_http_request);
   if (tcp_write(tpcb, g_http_request, len, TCP_WRITE_FLAG_COPY) != ERR_OK) {
     http_tcp_close(tpcb);
-    osThreadFlagsSet(taskUDPHandle, TCP_HTTP_ERROR_FLAG);
+    osThreadFlagsSet(taskHTTPHandle, TCP_HTTP_ERROR_FLAG);
     return ERR_OK;
   }
   tcp_output(tpcb);
@@ -771,10 +771,10 @@ static void http_tcp_err(void *arg, err_t err)
 {
   /* PCB is already freed by lwIP when this fires — do not call tcp_* on it */
   g_http_pcb = NULL;
-  osThreadFlagsSet(taskUDPHandle, TCP_HTTP_ERROR_FLAG);
+  osThreadFlagsSet(taskHTTPHandle, TCP_HTTP_ERROR_FLAG);
 }
 
-void StartTaskUDP(void *argument)
+void StartTaskHTTP(void *argument)
 {
   static const char *event_names[] = {
     "alarm_on", "alarm_off", "motion_detected", "alarm_triggered"
