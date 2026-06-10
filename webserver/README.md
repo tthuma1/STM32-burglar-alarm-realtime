@@ -47,6 +47,22 @@ HTML page listing all recorded events with timestamps, newest first.
 
 ## Testing
 
+### Simulation script
+
+Sends a realistic sequence of events (arm → motion → trigger → disarm → arm → disarm):
+
+```bash
+python test_events.py
+```
+
+Optional flags:
+
+```bash
+python test_events.py --host 192.168.1.1 --port 5000 --delay 1.0
+```
+
+### Manual curl
+
 ```bash
 curl -X POST http://localhost:5000/event \
   -H "Content-Type: application/json" \
