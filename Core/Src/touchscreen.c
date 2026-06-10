@@ -32,6 +32,11 @@
 #define COUNTDOWN_RECT_W     (SIDE_BUTTON_WIDTH)
 #define COUNTDOWN_RECT_H     28
 
+#define CLOCK_RECT_X         (SIDE_BUTTON_X)
+#define CLOCK_RECT_Y         (COUNTDOWN_RECT_Y + COUNTDOWN_RECT_H + 8)
+#define CLOCK_RECT_W         (SIDE_BUTTON_WIDTH)
+#define CLOCK_RECT_H         48
+
 #define INPUT_DOT_RADIUS     8
 #define INPUT_DOT_COUNT      4
 
@@ -70,7 +75,10 @@ static bool countdownActive = false;
 static uint32_t countdownStartTick = 0;
 static uint8_t countdownDurationSeconds = 0;
 static uint8_t lastCountdownRemaining = 255;
+static uint8_t lastClockSecond = 255;
 static char alarmStatus[16] = "Alarm off";
+
+extern hrtc;
 
 static void Touchscreen_DrawTextCentered(uint16_t x, uint16_t y, uint16_t width, const char *text)
 {
@@ -181,6 +189,32 @@ static void Touchscreen_DrawCountdown(void)
     uint16_t textY = COUNTDOWN_RECT_Y + (COUNTDOWN_RECT_H - Font20.Height) / 2;
     Touchscreen_DrawTextCentered(COUNTDOWN_RECT_X, textY, COUNTDOWN_RECT_W, countdownText);
   }
+}
+
+static void Touchscreen_DrawClock(void)
+{
+  RTC_TimeTypeDef sTime;
+  RTC_DateTypeDef sDate;
+  char dateStr[12];
+  char timeStr[12];
+
+  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);   /* must follow GetTime */
+
+  snprintf(dateStr, sizeof(dateStr), "%04u-%02u-%02u",
+           2000u + sDate.Year, sDate.Month, sDate.Date);
+  snprintf(timeStr, sizeof(timeStr), "%02u:%02u:%02u",
+           sTime.Hours, sTime.Minutes, sTime.Seconds);
+
+  UTIL_LCD_FillRect(CLOCK_RECT_X, CLOCK_RECT_Y, CLOCK_RECT_W, CLOCK_RECT_H,
+                    UTIL_LCD_COLOR_WHITE);
+  UTIL_LCD_SetBackColor(UTIL_LCD_COLOR_WHITE);
+  UTIL_LCD_SetTextColor(UTIL_LCD_COLOR_BLACK);
+
+  UTIL_LCD_SetFont(&Font16);
+  UTIL_LCD_DisplayStringAt(CLOCK_RECT_X, CLOCK_RECT_Y, (uint8_t *)dateStr, LEFT_MODE);
+  UTIL_LCD_SetFont(&Font20);
+  UTIL_LCD_DisplayStringAt(CLOCK_RECT_X, CLOCK_RECT_Y + 18, (uint8_t *)timeStr, LEFT_MODE);
 }
 
 static void Touchscreen_DrawInputField(void)
@@ -306,6 +340,7 @@ void Touchscreen_Init(void)
   Touchscreen_DrawKeypad();
   Touchscreen_DrawSideButton();
   Touchscreen_DrawCountdown();
+  Touchscreen_DrawClock();
 }
 
 void Touchscreen_Poll(void)
@@ -353,9 +388,24 @@ static void Touchscreen_UpdateCountdown(void)
   }
 }
 
+static void Touchscreen_UpdateClock(void)
+{
+  RTC_TimeTypeDef sTime;
+  RTC_DateTypeDef sDate;
+  HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN);
+  HAL_RTC_GetDate(&hrtc, &sDate, RTC_FORMAT_BIN);   /* must follow GetTime */
+
+  if (sTime.Seconds != lastClockSecond)
+  {
+    lastClockSecond = sTime.Seconds;
+    redrawPending = true;
+  }
+}
+
 void Touchscreen_Render(void)
 {
   Touchscreen_UpdateCountdown();
+  Touchscreen_UpdateClock();
 
   if (!redrawPending)
   {
@@ -368,6 +418,7 @@ void Touchscreen_Render(void)
   Touchscreen_DrawKeypad();
   Touchscreen_DrawSideButton();
   Touchscreen_DrawCountdown();
+  Touchscreen_DrawClock();
 }
 
 void Touchscreen_StartCountdown(uint8_t seconds)
