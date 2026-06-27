@@ -8,6 +8,8 @@ Receives state change events from the STM32H750B-DK burglar alarm IoT device and
 
 ## Setup
 
+- Set your IP to 192.168.1.1.
+
 ```bash
 pip install -r requirements.txt
 ```
